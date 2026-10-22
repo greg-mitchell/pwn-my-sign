@@ -32,3 +32,11 @@ body
    * Keep device identities, Android bug reports, raw Bluetooth captures, and investigation photos in ignored `private/`.
    * Unit tests use injected dependencies and `Mock(spec=...)`; no network, Bluetooth, threads, subprocesses, or patching.
    * Reproduce a bug with a failing test before changing its behavior; report the same test passing afterward.
+
+5. **CLI and workflow conventions**:
+   * Use `uv run` with its default implicit synchronization; do not pass `--no-sync`.
+   * Each installed command has its own clearly named module under `src/greg_mitchell/pwn_my_sign/cli/`
+     and an entry in `[project.scripts]`. Use Click for command-line interfaces.
+   * Keep domain logic outside `cli/`; introduce focused source packages as functionality grows.
+   * Keep pure refactors and features in separate commits and organize feature work into separate PRs.
+   * Keep user-selected artwork, fonts, personal captions, asset maps, and generated display cards in ignored `private/`.
