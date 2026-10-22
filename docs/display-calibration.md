@@ -1,0 +1,51 @@
+# Display calibration
+
+The first generated image was 1280 × 720 and carried the ID **MAC-A53E76**. Its successful Mac upload and a photograph
+confirmed the custom PNG path, correct orientation, and the intended full-screen layout.
+The photo and detailed derived artifacts remain under ignored `private/`.
+
+## Measurement
+
+The 4080 × 3072 photograph was aligned to the source using SIFT features and a RANSAC perspective estimate.
+373 of 471 candidate matches were inliers. The median interior alignment residual was about **0.24 display pixels**
+(approximately 0.56 camera pixels); the 95th-percentile camera residual was about 1.50 pixels.
+
+After rectification, the strongest intensity transition was measured in blank edge strips:
+
+| Edge | Median inset, display px | 10th–90th percentile |
+| --- | --- | --- |
+| Top | 23.5 | 18.5–25.5 |
+| Left | 6.5 | 6.5–7.5 |
+| Right | 18 | 18–18 |
+| Bottom | 7 | 7–9 |
+
+These are **frame/shadow transition estimates**, not precise physical crop boundaries. Bevel, shadow, glare, lens
+distortion, and extrapolation outside the matched interior affect the estimates. The small interior residual does not give
+equally precise edge measurements or establish a firmware offset.
+
+## Layout decision
+
+Keep important content at least **32 pixels inside every edge**. The resulting content box is:
+
+```text
+x ∈ [32, 1248), y ∈ [32, 688)
+width 1216, height 656
+```
+
+Backgrounds may fill all 1280 × 720 pixels. Apply the content inset in image generation, keeping the proven encoder geometry.
+The diagnostic's corner labels intentionally probe the physical edges and may be partially obscured.
+
+The grayscale ramp looked broadly correct to the owner. This photo cannot establish absolute brightness, gamma, or
+16 distinct physical shades: the darkest patches measured similarly, and a glare bump near level 6 interrupted
+local monotonicity. The wire format supports 16 values; photometric calibration remains unclaimed.
+
+## Reproduce
+
+```sh
+uv sync --locked --extra investigation
+uv run --no-sync python scripts/investigation/analyze_photo.py private/photos/20261022T130213_mac_custom_test.jpg
+```
+
+The tool writes `measurements.json`, `rectified-photo.png`, and a source/photo comparison with the proposed inset to
+`private/photo-analysis/`. The original image is never modified. These are investigation artifacts, outside the production
+test suite; normal tests use synthetic pixels and sanitized captured payloads.

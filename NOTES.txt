@@ -1,0 +1,9 @@
+The investigation notes have been refined into maintained project documentation:
+
+README.md                    Setup, current commands, and Unix workflows
+docs/implementation-plan.md  Milestones and WIP
+docs/protocol.md             Observed BLE commands, image format, and evidence
+docs/architecture.md         Tool boundaries, streams, workflow state, and UI
+docs/display-calibration.md  Photo measurements and content inset
+
+Original notes and prototype sources are retained under ignored private/.
