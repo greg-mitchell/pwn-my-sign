@@ -13,13 +13,13 @@ Two successful Android updates were captured on 2026-10-22 in America/Los_Angele
 | TEST A | 11:42:20.907692 | 11:42:24.006614–11:43:56.771509 | 11:43:58.621584 |
 | TEST B | 11:44:29.423813 | 11:44:32.514338–11:46:05.184848 | 11:46:06.450710 |
 
-The extracted `btsnoop_hci.log` is 1,329,771 bytes, spanning 11:41:33–11:55:13.
+The extracted `btsnoop_hci.log` is 1,329,771 bytes, from 11:41:33–11:55:13.
 The source Android bug report, raw logs, and app-rendered TEST A / TEST B image payloads stay private.
 Public fixtures are independently generated patterns; see [provenance](provenance.md).
 
-The Mac replay took 109.2469 seconds, including discovery and connection; the user confirmed TEST B changed to TEST A.
-The generated PNG upload took 108.5904 seconds; its photograph shows the unique MAC-A53E76 identifier and intended layout.
-See [display calibration](display-calibration.md) for independent photo alignment.
+The Mac replay took 109.2469 seconds, including discovery and connection, with confirmed sign image change.
+The generated PNG upload took 108.5904 seconds. I took a photo, which shows the unique generated identifier and intended
+layout. See [display calibration](display-calibration.md) for photo alignment notes.
 
 ## Services and characteristics
 
@@ -75,20 +75,16 @@ macOS device identifiers differ from Bluetooth MAC addresses and are local to th
 See [Bleak's macOS notes](https://bleak.readthedocs.io/en/stable/backends/macos.html).
 
 No app authentication exchange, SMP traffic, or HCI encryption-change event was observed in these two sessions.
-That observation does not establish the security properties of all Dory devices or firmware.
-Operate only on a deliberately selected device; the sender checks for the captured service before image writes.
 
-Physical wake is required on the tested unit. Scheduled wake, alternative commands, firmware updates, readback,
-partial refresh, maximum sustainable rate, and battery chemistry are unknown.
-Dory documents a long-life battery, replacement through support, and approximately 1,000 updates; charging has not been
-confirmed. See [Dory's product information](https://dorysign.com/products/dory-sign) and [FAQ](https://dorysign.com/pages/faq).
+Physical wake is required on the tested unit. Note that Dory documents approximately 1,000 updates, see 
+[Dory's product information](https://dorysign.com/products/dory-sign) and [FAQ](https://dorysign.com/pages/faq).
 
 ## Reproduction tools
 
 After `uv sync --locked`:
 
 ```sh
-uv run --no-sync python scripts/investigation/analyze_capture.py private/BUGREPORT.zip private/reextracted
+uv run python scripts/investigation/analyze_capture.py private/BUGREPORT.zip private/reextracted
 ```
 
 The scratch parser reads HCI packets, reconstructs ACL/L2CAP messages, decodes ATT, extracts write streams,

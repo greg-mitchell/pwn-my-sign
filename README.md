@@ -1,9 +1,9 @@
 # Pwn My Sign
 
 Small tools for putting custom content on a Dory e-paper sign from a computer.
-The first application is a team display of GitHub's overall service status.
+I built this to show service health from a cron job, motivated by recent frequent Github outages.
 
-This is an independent, unofficial interoperability project. It is not affiliated with or endorsed by Dory AS or GitHub.
+This is an independent, unofficial interoperability project. It is not affiliated with or endorsed by Dory AS.
 Use it with signs you own or are authorized to manage. Product names identify compatibility.
 
 **Working:** discovery and full-screen image uploads from macOS over Bluetooth LE.
@@ -30,7 +30,7 @@ Keep important text and graphics at least **32 pixels** from each edge; backgrou
 Close the Dory app on your phone, then discover the sign:
 
 ```sh
-uv run --no-sync dory scan
+uv run dory scan
 ```
 
 Allow Bluetooth access and press the sign's physical button when prompted.
@@ -38,7 +38,7 @@ Use its advertised name or the UUID printed by the scan. On macOS, that UUID is 
 
 ```sh
 export DORY_DEVICE='your-sign-name-or-macos-uuid'
-uv run --no-sync dory-send --device "$DORY_DEVICE" --image image.png
+uv run dory-send --device "$DORY_DEVICE" --image image.png
 ```
 
 The sender prints **“Waiting for the selected sign; press its button now.”** to stderr.
@@ -54,12 +54,12 @@ application acknowledgement that the intended image is physically visible.
 ## Build a recognizable test image
 
 ```sh
-uv run --no-sync dory-test-card --output private/mac-test.png
-uv run --no-sync dory-send --device "$DORY_DEVICE" --image private/mac-test.png
+uv run dory-test-card --output private/mac-test.png
+uv run dory-send --device "$DORY_DEVICE" --image private/mac-test.png
 ```
 
-Each card says **SENT FROM MAC**, carries a fresh ID and timestamp, and includes a grayscale ramp and corner labels.
-The corner labels deliberately probe the image edges, where the frame can hide some pixels.
+Each card says **SENT FROM MAC**, with a fresh ID and timestamp, and includes a grayscale ramp and corner labels.
+The corner labels probe the image edges, where the frame can hide some pixels.
 The diagnostic currently defaults to a macOS Arial font; `--font` accepts a different TrueType font path.
 General image building and rendering from templates are WIP.
 
@@ -140,7 +140,7 @@ if cmp -s "$snapshot" "$state/last-sent.png"; then
   exit 0
 fi
 
-uv run --no-sync dory-send --device "$DORY_DEVICE" --image "$snapshot"
+uv run dory-send --device "$DORY_DEVICE" --image "$snapshot"
 mv "$snapshot" "$state/last-sent.png"
 ```
 
@@ -174,13 +174,13 @@ The source lives in `src/greg_mitchell/pwn_my_sign/`, with matching tests under 
 Run commands from the project root:
 
 ```sh
-uv run --no-sync poe format
-uv run --no-sync poe check-all
+uv run poe format
+uv run poe check-all
 ```
 
 Poe defines `lint`, `format`, `typecheck` (`ty`), `test` (pytest), `check-all`, and `fix-all` in `pyproject.toml`.
 Pre-commit uses the same Ruff, type, and test checks. After initializing a Git checkout, hooks can be installed with
-`uv run --no-sync pre-commit install`.
+`uv run pre-commit install`.
 
 Unit tests use injected dependencies and mocks; they never scan Bluetooth, fetch the network, or send an image.
 The public compressed fixtures are independently generated grayscale and checkerboard patterns.
@@ -191,7 +191,7 @@ To rerun the photo analysis, install the optional investigation dependencies:
 
 ```sh
 uv sync --locked --extra investigation
-uv run --no-sync python scripts/investigation/analyze_photo.py private/photos/20261022T130213_mac_custom_test.jpg
+uv run python scripts/investigation/analyze_photo.py private/photos/20261022T130213_mac_custom_test.jpg
 ```
 
 ## Documentation

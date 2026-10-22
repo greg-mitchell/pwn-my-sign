@@ -6,7 +6,7 @@ Physical button wake is accepted. Poll as often as useful, but send only meaning
 | Milestone | State | Acceptance criterion |
 | --- | --- | --- |
 | 1. Learn the protocol | Complete | Two Android captures decode, and Mac replay changes TEST B to TEST A. |
-| 2. Send custom content | Complete | Newly generated MAC-A53E76 is visible, upright, and matched to its source photograph. |
+| 2. Send custom content | Complete | Newly generated image is visible, upright, and matched to its source photograph. |
 | 3. Establish the project | Complete | Packaged sender and diagnostic, public offline tests, developer tooling, and maintained docs. |
 | 4. Compose GitHub status | Next | Fetch a validated rollup code; select one of four static images; simulate every state offline. |
 | 5. Run the workflow | WIP | Atomic pending images, comparisons, upload snapshots, scheduler recipes, and a clear terminal button prompt. |

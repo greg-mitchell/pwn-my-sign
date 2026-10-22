@@ -1,8 +1,7 @@
 # Display calibration
 
-The first generated image was 1280 × 720 and carried the ID **MAC-A53E76**. Its successful Mac upload and a photograph
-confirmed the custom PNG path, correct orientation, and the intended full-screen layout.
-The photo and detailed derived artifacts remain under ignored `private/`.
+The first generated image was a 1280 × 720 calibration image with grayscale and text elements testing visible margin.
+I took a photograph of the displayed image after uploading from my laptop.
 
 ## Measurement
 
@@ -43,7 +42,7 @@ local monotonicity. The wire format supports 16 values; photometric calibration 
 
 ```sh
 uv sync --locked --extra investigation
-uv run --no-sync python scripts/investigation/analyze_photo.py private/photos/20261022T130213_mac_custom_test.jpg
+uv run --no-sync python scripts/investigation/analyze_photo.py private/photos/<your-photo-of-a-test-image>.jpg
 ```
 
 The tool writes `measurements.json`, `rectified-photo.png`, and a source/photo comparison with the proposed inset to

@@ -8,16 +8,13 @@ firmware, signing keys, or authentication tokens were used or are distributed.
 The protocol document describes the observed interface and its limits.
 
 Implementation and documentation were developed with AI assistance and reviewed
-through offline tests and physical upload experiments. Development guidance and
-project structure were adapted, with the owner's permission, from their
-`greg-mitchell/portfolio` project.
+through offline tests and physical upload experiments.
 
 ## Images and fonts
 
 Public fixtures are independently constructed grayscale and checkerboard bytes.
 `scripts/generate_test_fixtures.py` regenerates them without using the encoder,
-Dory's app, font files, or artwork. App-rendered TEST A / TEST B captures remain
-under ignored `private/` and are not part of the published source.
+Dory's app, font files, or artwork.
 
 The diagnostic image utility loads a font supplied by the user or already present
 on their system. It does not distribute that font. Use appropriately licensed
@@ -48,7 +45,3 @@ and retain notices for everything it redistributes.
 This project is independent and is not affiliated with or endorsed by Dory AS or
 GitHub. Product names are used to identify compatible hardware and data sources.
 The repository does not distribute their logos or app assets.
-
-`private/` contains device identifiers, Android bug reports, Bluetooth logs,
-photographs, local evidence, and archived prototypes. It is ignored by Git.
-Do not force-add these files or include them in release artifacts.

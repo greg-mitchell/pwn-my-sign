@@ -39,22 +39,15 @@ The packaged `dory scan` command is a device discovery aid. Investigation script
 - Nonzero exit indicates failure. Fetch and mapping errors do not produce a new pending image. A zero sender exit does
   not imply a physical display acknowledgement; that distinction is recorded in [the protocol](protocol.md).
 
-Each executable does one operation and exits. Generic tools contain no GitHub-specific state interpretation.
+Each executable does one operation and exits. Vendor-specific logic is owned by a small, composable tool.
 Use Pydantic models for new structured configuration, with immutable data and serialization owned by the model.
 Closed domain sets, such as GitHub's four indicator codes, use `StrEnum` in Python adapters.
 
 ## Existing Python structure
 
-The `greg_mitchell.pwn_my_sign` namespace follows the portfolio project's `src/` layout:
-
-- `frame_codec.py`: exact dimensions, grayscale packing, row direction, and decoding.
-- `transport.py`: the verified BLE write sequence; accepts a connected client and an injected sleep dependency.
-- `cli.py`: argument parsing, file loading, device discovery, and runtime dependency construction.
-- `test_card.py`: diagnostic image generation.
-
-Tests mirror the package under `tests/greg_mitchell/pwn_my_sign/`. Public fixtures contain independently generated
-grayscale and checkerboard patterns. Original TEST A / TEST B payloads and Android captures remain private;
-the documented observations preserve the protocol evidence without redistributing app-rendered images.
+- Python sources are under `src/`, and may be implementations called by thin scripts or main entrypoints.
+- Tests mirror the package under `tests/greg_mitchell/pwn_my_sign/`. 
+- Public fixtures build test patterns. Do not redistribute proprietary images as fixtures.
 
 ## Workflow state
 
@@ -81,11 +74,14 @@ unnecessary even though an intermediate outage was observed.
 
 ## Button prompts and desktop integration
 
-**Decision: terminal first; optional desktop reminder or menu bar helper later.**
+**MVP: terminal-driven workflow and notifications**
 
 The foreground sender validates the image, prints a clear instruction to stderr, and scans while the person presses the
-physical sign button. It then prints progress and asks the person to verify the display. A timeout is a failure; it does
-not advance workflow state. Network polling remains independent of a person being present.
+physical sign button. It then prints progress and asks the person to verify the display.
+
+### Graphical Notifications
+
+Adding UI elements to request the user to press the physical button will come later.
 
 The optional desktop layer should distinguish:
 
@@ -101,7 +97,7 @@ The optional desktop layer should distinguish:
 Notifications and menu icons are presentation adapters. They observe local state or command progress and invoke the same
 workflow. They do not fetch GitHub independently, render images, or reimplement the BLE protocol.
 
-### macOS options — WIP
+Options for MacOS:
 
 1. **Notification adapter:** a small command can request a desktop reminder; availability, permissions, suppression by
    Focus, and activation behavior need verification. The terminal remains the reliable first interface.
