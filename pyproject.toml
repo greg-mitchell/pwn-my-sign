@@ -10,12 +10,12 @@ readme = "README.md"
 license = "MIT"
 license-files = ["LICENSE.txt"]
 requires-python = ">=3.13.6"
-dependencies = ["bleak==3.0.1", "pillow>=11,<13"]
+dependencies = ["bleak==3.0.1", "pillow>=11,<13", "click>=8,<9"]
 
 [project.scripts]
-dory = "greg_mitchell.pwn_my_sign.cli:main"
-dory-send = "greg_mitchell.pwn_my_sign.cli:send_main"
-dory-test-card = "greg_mitchell.pwn_my_sign.test_card:main"
+dory = "greg_mitchell.pwn_my_sign.cli.dory:main"
+dory-send = "greg_mitchell.pwn_my_sign.cli.dory_send:main"
+dory-test-card = "greg_mitchell.pwn_my_sign.cli.dory_test_card:main"
 
 [project.optional-dependencies]
 investigation = ["opencv-python-headless>=4.10,<5", "numpy>=2,<3"]

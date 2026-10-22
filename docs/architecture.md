@@ -28,6 +28,9 @@ flowchart LR
 
 The packaged `dory scan` command is a device discovery aid. Investigation scripts live separately from the public tools.
 
+The commands use Click; their names, flags, and defaults are preserved from the initial argparse interface.
+Click supplies the current help and usage-error formatting.
+
 ## Stream and failure contracts
 
 - A source emits exactly one stable code and a newline on stdout, such as `minor`.
@@ -45,7 +48,12 @@ Closed domain sets, such as GitHub's four indicator codes, use `StrEnum` in Pyth
 
 ## Existing Python structure
 
-- Python sources are under `src/`, and may be implementations called by thin scripts or main entrypoints.
+- Python sources are under `src/greg_mitchell/pwn_my_sign/`.
+- `cli/dory.py`, `cli/dory_send.py`, and `cli/dory_test_card.py` define the installed Click commands.
+  Each executable is declared in `pyproject.toml`; `dory upload` reuses the `dory-send` command.
+- `device/operations.py` owns discovery and upload orchestration, with injected Bluetooth dependencies.
+- `images/test_card.py` builds the diagnostic image. Keep image construction separate from CLI options and file output.
+- `frame_codec.py` and `transport.py` retain the verified image format and BLE transfer implementation.
 - Tests mirror the package under `tests/greg_mitchell/pwn_my_sign/`. 
 - Public fixtures build test patterns. Do not redistribute proprietary images as fixtures.
 

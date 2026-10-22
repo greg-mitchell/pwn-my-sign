@@ -171,7 +171,9 @@ the code → image → sender boundary.
 ## Development
 
 The source lives in `src/greg_mitchell/pwn_my_sign/`, with matching tests under `tests/greg_mitchell/pwn_my_sign/`.
-Run commands from the project root:
+Each installed command has a Click entrypoint in `src/greg_mitchell/pwn_my_sign/cli/`.
+Device operations live in `device/`; diagnostic image construction lives in `images/`.
+Run commands from the project root; `uv run` syncs the environment implicitly:
 
 ```sh
 uv run poe format
