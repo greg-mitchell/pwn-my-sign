@@ -13,9 +13,7 @@ requires-python = ">=3.13.6"
 dependencies = ["bleak==3.0.1", "pillow>=11,<13", "click>=8,<9"]
 
 [project.scripts]
-dory = "greg_mitchell.pwn_my_sign.cli.dory:main"
-dory-send = "greg_mitchell.pwn_my_sign.cli.dory_send:main"
-dory-test-card = "greg_mitchell.pwn_my_sign.cli.dory_test_card:main"
+mysign = "greg_mitchell.pwn_my_sign.cli.mysign:main"
 
 [project.optional-dependencies]
 investigation = ["opencv-python-headless>=4.10,<5", "numpy>=2,<3"]

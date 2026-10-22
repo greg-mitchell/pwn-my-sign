@@ -19,7 +19,7 @@ from greg_mitchell.pwn_my_sign.images.test_card import make_test_card
     show_default=True,
 )
 @click.pass_obj
-def main(builder: Callable[[str, str, Path], Image.Image] | None, output: Path, font: Path) -> None:
+def test_card(builder: Callable[[str, str, Path], Image.Image] | None, output: Path, font: Path) -> None:
     """Create a visibly distinct Dory upload test."""
     test_id = f"MAC-{uuid.uuid4().hex[:6].upper()}"
     timestamp = datetime.datetime.now().astimezone().isoformat(timespec="seconds")

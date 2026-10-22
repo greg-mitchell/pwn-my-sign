@@ -35,8 +35,9 @@ body
 
 5. **CLI and workflow conventions**:
    * Use `uv run` with its default implicit synchronization; do not pass `--no-sync`.
-   * Each installed command has its own clearly named module under `src/greg_mitchell/pwn_my_sign/cli/`
-     and an entry in `[project.scripts]`. Use Click for command-line interfaces.
+   * Install only `mysign` through `[project.scripts]`. Use Click domain groups (`device`, `image`, and future `github`)
+     with a focused module for each group or command under `src/greg_mitchell/pwn_my_sign/cli/`.
+     Each leaf command remains one composable operation with explicit stream contracts.
    * Keep domain logic outside `cli/`; introduce focused source packages as functionality grows.
    * Keep pure refactors and features in separate commits and organize feature work into separate PRs.
    * Keep user-selected artwork, fonts, personal captions, asset maps, and generated display cards in ignored `private/`.

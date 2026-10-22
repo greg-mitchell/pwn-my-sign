@@ -17,15 +17,15 @@ The repository supplies general tools and workflow documentation, without redist
 ## PR sequence
 
 Each row is one reviewable PR. Pure refactors and feature changes use separate commits.
-These units share entrypoint and lockfile edits, so implement them serially from `main` after review.
+These units share CLI group registration and dependency metadata, so implement them serially from `main` after review.
 Keep later prototypes local rather than creating an unnecessary PR stack.
 
 | Unit | Scope | State | Dependency |
 | --- | --- | --- | --- |
-| 1. Click entrypoints | Move existing commands into `cli/`, extract domain operations, preserve behavior. | In review | Existing sender |
-| 2. GitHub source | Add `github-status`, validated summary data, rollup/team views, and offline inputs. | Queued | CLI convention |
-| 3. Image selection and piping | Add `match-image`, then PNG stdin support for the sender in a separate feature commit. | Queued | CLI convention |
-| 4. Card building | Add `make-image` with explicit artwork/font inputs and a consistent image/text layout. | Queued | CLI convention |
+| 1. Click domain groups | Install `mysign` with `device` and `image` groups, extract domain operations, preserve leaf behavior. | In review | Existing sender |
+| 2. GitHub source | Add `mysign github status`, validated summary data, rollup/team views, and offline inputs. | Queued | CLI convention |
+| 3. Image selection and piping | Add `mysign image match`, then PNG stdin support for the sender in a separate feature commit. | Queued | CLI convention |
+| 4. Card building | Add `mysign image make` with explicit artwork/font inputs and a consistent image/text layout. | Queued | CLI convention |
 | 5. Workflow integration | Runnable shell examples, state comparisons, upload snapshots, locks, and scheduler docs. | Queued | Source, selection, sender |
 
 ## Source and selection acceptance
@@ -40,7 +40,7 @@ Keep later prototypes local rather than creating an unnecessary PR stack.
 - Reject unknown or incomplete source data; never infer healthy from a failed fetch or malformed response.
 - Select an exact token from stdin using a TOML map. Resolve asset paths relative to that map and emit the original PNG bytes.
   Read and validate the complete selected image before writing stdout; lookup or read failure produces no image.
-- Accept PNG stdin with `dory-send --image -`; validate before prompting or scanning Bluetooth.
+- Accept PNG stdin with `mysign device send --image -`; validate before prompting or scanning Bluetooth.
 - Simulate Actions-only, unrelated, simultaneous, and widespread failures offline.
 
 ## Card acceptance

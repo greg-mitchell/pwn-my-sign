@@ -17,7 +17,7 @@ def _report(message: str) -> None:
 @click.option("--image", type=click.Path(path_type=Path), help="1280x720 image.")
 @click.option("--frame", type=click.Path(path_type=Path), help="Headerless captured image payload.")
 @click.pass_obj
-def main(
+def send(
     operations: DeviceOperations | None,
     device: str,
     timeout: float,

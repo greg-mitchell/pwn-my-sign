@@ -2,16 +2,10 @@ import asyncio
 
 import click
 
-from greg_mitchell.pwn_my_sign.cli.dory_send import main as upload
 from greg_mitchell.pwn_my_sign.device.operations import DeviceOperations
 
 
-@click.group()
-def main() -> None:
-    """Scan and upload images to a Dory sign."""
-
-
-@main.command()
+@click.command()
 @click.option("--timeout", type=click.FloatRange(min=0, min_open=True), default=30, show_default=True)
 @click.pass_obj
 def scan(operations: DeviceOperations | None, timeout: float) -> None:
@@ -20,6 +14,3 @@ def scan(operations: DeviceOperations | None, timeout: float) -> None:
     for device, advertisement in asyncio.run((operations or DeviceOperations()).scan(timeout)):
         name = advertisement.local_name or device.name or "(unnamed)"
         click.echo(f"{device.address}  {name!r}  RSSI {advertisement.rssi}")
-
-
-main.add_command(upload, name="upload")

@@ -8,28 +8,29 @@ The first workflow shows GitHub's overall status with one of four prebuilt PNGs.
 
 ```mermaid
 flowchart LR
-    scheduler[cron / systemd / launchd] --> fetch[github-status]
-    fetch -->|one code| select[match-image]
+    scheduler[cron / systemd / launchd] --> fetch[mysign github status]
+    fetch -->|one code| select[mysign image match]
     select -->|PNG| pending[pending.png]
-    build[make-image / future template renderer] -->|assets| select
+    build[mysign image make / future template renderer] -->|assets| select
     pending --> upload[foreground upload workflow]
-    upload --> sender[dory-send]
+    upload --> sender[mysign device send]
     button[person presses sign button] --> sender
     sender -->|BLE| sign[Dory sign]
 ```
 
 | Tool | Owns | Does not own | Implementation state |
 | --- | --- | --- | --- |
-| `github-status` | Request, GitHub JSON interpretation, stable rollup code | Images, Bluetooth, scheduling | WIP |
-| `match-image` | Exact code lookup and asset reading | Endpoint knowledge, rendering, workflow persistence | WIP |
-| `make-image` | Building a PNG using appearance inputs | Fetching status or sending to hardware | WIP |
-| `dory-send` | Dimension validation, encoding, BLE discovery/transfer, terminal prompt | GitHub, polling, pending-image persistence | File input works; stdin WIP |
-| `dory-test-card` | Recognizable diagnostic image and ID metadata | General layout authoring | Working |
+| `mysign github status` | Request, GitHub JSON interpretation, stable rollup code | Images, Bluetooth, scheduling | WIP |
+| `mysign image match` | Exact code lookup and asset reading | Endpoint knowledge, rendering, workflow persistence | WIP |
+| `mysign image make` | Building a PNG using appearance inputs | Fetching status or sending to hardware | WIP |
+| `mysign device send` | Dimension validation, encoding, BLE discovery/transfer, terminal prompt | GitHub, polling, pending-image persistence | File input works; stdin WIP |
+| `mysign image test-card` | Recognizable diagnostic image and ID metadata | General layout authoring | Working |
 
-The packaged `dory scan` command is a device discovery aid. Investigation scripts live separately from the public tools.
+The packaged `mysign device scan` command is a device discovery aid.
+Investigation scripts live separately from the public tools.
 
-The commands use Click; their names, flags, and defaults are preserved from the initial argparse interface.
-Click supplies the current help and usage-error formatting.
+The commands use Click domain groups under one `mysign` executable. Leaf flags and defaults are preserved from the
+initial argparse interface. Click supplies help and usage-error formatting.
 
 ## Stream and failure contracts
 
@@ -42,15 +43,17 @@ Click supplies the current help and usage-error formatting.
 - Nonzero exit indicates failure. Fetch and mapping errors do not produce a new pending image. A zero sender exit does
   not imply a physical display acknowledgement; that distinction is recorded in [the protocol](protocol.md).
 
-Each executable does one operation and exits. Vendor-specific logic is owned by a small, composable tool.
+Each leaf command does one operation and exits. Grouping organizes discovery while preserving Unix pipe composition.
+Vendor-specific logic remains separate from image selection and rendering.
 Use Pydantic models for new structured configuration, with immutable data and serialization owned by the model.
 Closed domain sets, such as GitHub's four indicator codes, use `StrEnum` in Python adapters.
 
 ## Existing Python structure
 
 - Python sources are under `src/greg_mitchell/pwn_my_sign/`.
-- `cli/dory.py`, `cli/dory_send.py`, and `cli/dory_test_card.py` define the installed Click commands.
-  Each executable is declared in `pyproject.toml`; `dory upload` reuses the `dory-send` command.
+- `cli/mysign.py` defines the single installed executable, declared in `pyproject.toml`.
+  `cli/device.py` and `cli/image.py` register domain groups; `cli/scan.py`, `cli/send.py`, and `cli/test_card.py`
+  define their leaf commands. The `github` group is planned with the source adapter.
 - `device/operations.py` owns discovery and upload orchestration, with injected Bluetooth dependencies.
 - `images/test_card.py` builds the diagnostic image. Keep image construction separate from CLI options and file output.
 - `frame_codec.py` and `transport.py` retain the verified image format and BLE transfer implementation.
@@ -113,7 +116,7 @@ Options for MacOS:
    uploader on an explicit action. The plugin can refresh local workflow state while system scheduling owns source polling.
 3. **Native menu bar utility:** SwiftUI `MenuBarExtra` or AppKit `NSStatusItem` can provide the menu. It needs a running
    application/event loop, but no main window. An agent app can use `LSUIElement` to hide its Dock icon. The helper can
-   remain thin and call the Python executables.
+   remain thin and call the `mysign` commands.
 
 No GUI application, notification posting, login item, or scheduler is installed by the current project setup.
 Native bundling would need a stable app identity and Bluetooth/notification permission design.
