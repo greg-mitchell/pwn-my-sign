@@ -77,10 +77,7 @@ These are the intended interfaces. Only the rows marked **working** are installe
 | `mysign device send --image -` | PNG on stdin | Diagnostics on stderr, exit status | WIP |
 | `mysign image test-card` | Output/font options | Diagnostic PNG and ID metadata | Working |
 
-Data belongs on stdout; diagnostics belong on stderr. Each leaf command runs once and exits.
-Domain groups organize help; commands remain small operations that compose through Unix pipes.
-Source adapters own domain-specific interpretation. Matchers own configuration. The sender owns Bluetooth and encoding.
-Polling, comparisons, files, locks, and scheduling belong in documented shell composition.
+See [architecture](docs/architecture.md) for command boundaries, stream contracts, and workflow invariants.
 
 ## GitHub workflow
 
@@ -122,8 +119,7 @@ if ! cmp -s "$next" "$state/pending.png"; then
 fi
 ```
 
-The temporary file sits beside the destination so the rename publishes a complete image atomically.
-On failure, the previous pending image survives. Prebuilt assets are deterministic; polling does not add a new timestamp.
+The image artifacts and publication rules are defined in [workflow state](docs/architecture.md#workflow-state).
 
 ### Upload the pending image
 
@@ -146,9 +142,7 @@ uv run mysign device send --device "$MYSIGN_DEVICE" --image "$snapshot"
 mv "$snapshot" "$state/last-sent.png"
 ```
 
-The prompt tells the person at the computer when to press the sign's button. A failed transfer leaves `last-sent.png`
-unchanged. If polling publishes a new image during upload, the snapshot still records exactly what was sent;
-the newer pending image remains available for the next upload.
+The snapshot follows the [workflow state contract](docs/architecture.md#workflow-state).
 
 ### Schedule polling — WIP
 
@@ -162,20 +156,12 @@ Installing jobs, starting background processes, and posting desktop notification
 
 ### Desktop reminders and templates — WIP
 
-The initial user interface is the sender's terminal prompt and progress output.
-A notification or menu bar helper can later show **update pending**, then invoke the same upload workflow.
-macOS menu bar utilities can run without a main window; a SwiftBar plugin can also host a script-driven menu.
-See [architecture](docs/architecture.md#button-prompts-and-desktop-integration) for the options and workflow states.
-
-Rendering from a template on a status change is a later enhancement. It should produce the same PNG interface and preserve
-the code → image → sender boundary.
+Desktop helpers and template rendering are tracked in the
+[implementation plan](docs/implementation-plan.md#optional-desktop-and-rendering-work). Their design boundaries are defined
+in [architecture](docs/architecture.md#button-prompts-and-desktop-integration).
 
 ## Development
 
-The source lives in `src/greg_mitchell/pwn_my_sign/`, with matching tests under `tests/greg_mitchell/pwn_my_sign/`.
-Each Click group and command has a focused module in `src/greg_mitchell/pwn_my_sign/cli/`.
-The single `mysign` executable is declared in `[project.scripts]` in `pyproject.toml`.
-Device operations live in `device/`; diagnostic image construction lives in `images/`.
 Run commands from the project root; `uv run` syncs the environment implicitly:
 
 ```sh
@@ -183,13 +169,9 @@ uv run poe format
 uv run poe check-all
 ```
 
-Poe defines `lint`, `format`, `typecheck` (`ty`), `test` (pytest), `check-all`, and `fix-all` in `pyproject.toml`.
-Pre-commit uses the same Ruff, type, and test checks. After initializing a Git checkout, hooks can be installed with
-`uv run pre-commit install`.
-
-Unit tests use injected dependencies and mocks; they never scan Bluetooth, fetch the network, or send an image.
-The public compressed fixtures are independently generated grayscale and checkerboard patterns.
-Android bug reports, raw Bluetooth logs, device identities, photos, and generated evidence stay under ignored `private/`.
+Available tasks, entrypoints, and dependencies are defined in [pyproject.toml](pyproject.toml).
+See [the contributor guidelines](AGENTS.md) for required checks, coding conventions, and test rules.
+Install commit hooks with `uv run pre-commit install`.
 
 Investigation scripts are retained in `scripts/investigation/`, outside production lint/type-check scope.
 To rerun the photo analysis, install the optional investigation dependencies:
