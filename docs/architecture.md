@@ -38,7 +38,8 @@ Python and testing conventions are defined in [the contributor guidelines](../AG
   to the explicit mapping file. Selected cards must be static 1280 x 720 PNGs. Lookup, read, or validation failures
   produce no image output.
 - Renderers produce PNG bytes or write an explicitly named output file. Templates preserve that image interface.
-- The sender validates the complete input before prompting or scanning Bluetooth.
+- The sender validates the complete input before prompting or scanning Bluetooth. PNG stdin must be static and
+  1280 x 720; file inputs retain the image formats supported by the sender.
 - Data belongs on stdout; progress, prompts, and errors belong on stderr.
 - Nonzero exit indicates failure. Successful transfer calls do not establish physical display acknowledgement;
   see [the protocol's observed limits](protocol.md).

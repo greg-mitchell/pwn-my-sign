@@ -10,7 +10,7 @@ The repository supplies general tools and workflow documentation, without redist
 | 1. Learn the protocol | Complete | Two Android captures decode, and Mac replay changes TEST B to TEST A. |
 | 2. Send custom content | Complete | Newly generated image is visible, upright, and matched to its source photograph. |
 | 3. Establish the project | Complete | Packaged sender and diagnostic, offline tests, developer tooling, and docs. |
-| 4. Compose GitHub status | Next | Validated source codes select private static cards; simulate every state offline. |
+| 4. Compose GitHub status | In review | Validated source codes select private static cards; simulate every state offline. |
 | 5. Run the workflow | WIP | Atomic pending images, upload snapshots, scheduler recipes, and terminal prompts. |
 | 6. Add convenience | Optional | Templates, notifications, or a thin menu bar helper using the existing commands. |
 
@@ -24,7 +24,7 @@ Keep later prototypes local rather than creating an unnecessary PR stack.
 | --- | --- | --- | --- |
 | 1. Click domain groups | Install `mysign` with `device` and `image` groups, extract domain operations, preserve leaf behavior. | Complete | Existing sender |
 | 2. GitHub source | Add `mysign github status`, validated summary data, explicit service policies, and offline inputs. | Complete | CLI convention |
-| 3. Image selection and piping | Add `mysign image match`, then PNG stdin support for the sender in a separate feature commit. | In progress | CLI convention |
+| 3. Image selection and piping | Add `mysign image match`, then PNG stdin support for the sender in a separate feature commit. | In review | CLI convention |
 | 4. Card building | Add `mysign image make` with explicit artwork/font inputs and a consistent image/text layout. | Queued | CLI convention |
 | 5. Workflow integration | Runnable shell examples, state comparisons, upload snapshots, locks, and scheduler docs. | Queued | Source, selection, sender |
 

@@ -51,6 +51,15 @@ A zero exit status means the transfer calls completed. Check the display: the ca
 application acknowledgement that the intended image is physically visible.
 
 Captured headerless payloads can be replayed using `--frame` instead of `--image`.
+Use `--image -` to read one static 1280 × 720 PNG from stdin. The sender reads and validates it completely before
+printing the button prompt or scanning Bluetooth; malformed input produces an error on stderr and no transfer.
+
+```sh
+printf '%s\n' ok | uv run mysign image match --map private/images.toml \
+  | uv run mysign device send --device "$MYSIGN_DEVICE" --image -
+```
+
+For repeated updates, prepare and snapshot pending images using the [GitHub workflow](#github-workflow).
 
 ## Build a recognizable test image
 
@@ -74,7 +83,7 @@ These are the intended interfaces. Only the rows marked **working** are installe
 | `mysign image match --map images.toml` | One code on stdin | Selected PNG bytes on stdout | Working |
 | `mysign image make` | Text and appearance options | PNG | WIP |
 | `mysign device send` | `--image FILE` or `--frame FILE` | Diagnostics on stderr, exit status | Working |
-| `mysign device send --image -` | PNG on stdin | Diagnostics on stderr, exit status | WIP |
+| `mysign device send --image -` | PNG on stdin | Diagnostics on stderr, exit status | Working |
 | `mysign image test-card` | Output/font options | Diagnostic PNG and ID metadata | Working |
 
 See [architecture](docs/architecture.md) for command boundaries, stream contracts, and workflow invariants.

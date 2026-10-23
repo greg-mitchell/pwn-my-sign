@@ -54,6 +54,7 @@ def test_device_send_when_source_is_selected_calls_uploader_with_defaults(source
     operations.upload.assert_awaited_once_with(
         "test-sign",
         image_path=Path("input.bin") if source == "--image" else None,
+        image_stream=None,
         frame_path=Path("input.bin") if source == "--frame" else None,
         timeout=60,
         packet_delay=0.05,
@@ -72,7 +73,13 @@ def test_device_send_when_options_are_selected_calls_uploader_with_options() -> 
     )
 
     operations.upload.assert_awaited_once_with(
-        "test-sign", image_path=Path("image.png"), frame_path=None, timeout=9, packet_delay=0.1, report=ANY
+        "test-sign",
+        image_path=Path("image.png"),
+        image_stream=None,
+        frame_path=None,
+        timeout=9,
+        packet_delay=0.1,
+        report=ANY,
     )
 
 

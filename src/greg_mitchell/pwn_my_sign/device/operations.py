@@ -1,6 +1,7 @@
 import asyncio
 from collections.abc import Awaitable, Callable
 from pathlib import Path
+from typing import BinaryIO
 
 from bleak import BleakClient, BleakScanner
 from bleak.backends.device import BLEDevice
@@ -8,10 +9,15 @@ from bleak.backends.scanner import AdvertisementData
 from PIL import Image
 
 from greg_mitchell.pwn_my_sign.frame_codec import FRAME_BYTES, encode_image
+from greg_mitchell.pwn_my_sign.images.png import load_png
 from greg_mitchell.pwn_my_sign.transport import send_frame
 
 Sleep = Callable[[float], Awaitable[None]]
 SendFrame = Callable[[BleakClient, bytes, float, Sleep], Awaitable[None]]
+
+
+class ImageInputError(ValueError):
+    """PNG stream input could not be read or validated before device discovery."""
 
 
 class DeviceOperations:
@@ -40,8 +46,17 @@ class DeviceOperations:
         timeout: float,
         packet_delay: float,
         report: Callable[[str], None],
+        image_stream: BinaryIO | None = None,
     ) -> None:
-        if image_path is not None:
+        if image_stream is not None:
+            if image_path is not None or frame_path is not None:
+                raise ImageInputError("Provide only one image or frame source.")
+            try:
+                with load_png(image_stream.read()) as image:
+                    payload = encode_image(image)
+            except (OSError, ValueError) as error:
+                raise ImageInputError(str(error)) from error
+        elif image_path is not None:
             with Image.open(image_path) as image:
                 payload = encode_image(image)
         elif frame_path is not None:
