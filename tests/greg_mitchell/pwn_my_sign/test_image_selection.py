@@ -72,8 +72,6 @@ def test_select_when_token_is_unmapped_raises_value_error(map_path: Path, token:
         b"\xff",
         b"",
         b"[images]",
-        b'[images]\nok = ""',
-        b'[images]\nok = " "',
         b'[images]\n" " = "card.png"',
         b'[images]\nok = 123',
         b'unknown = true\n[images]\nok = "card.png"',
@@ -87,9 +85,12 @@ def test_select_when_map_is_invalid_raises_value_error(map_path: Path, document:
         ImageSelector().select(map_path, BytesIO(b"ok"))
 
 
-def test_select_when_asset_is_missing_raises_os_error(map_path: Path) -> None:
+@pytest.mark.parametrize("asset", ("missing.png", "", ".", " "))
+def test_select_when_asset_is_unreadable_raises_os_error(map_path: Path, asset: str) -> None:
+    map_path.write_text(f'[images]\nok = "{asset}"\n')
+
     with pytest.raises(OSError):
-        ImageSelector().select(map_path, BytesIO(b"missing"))
+        ImageSelector().select(map_path, BytesIO(b"ok"))
 
 
 def test_select_when_map_read_fails_raises_os_error() -> None:

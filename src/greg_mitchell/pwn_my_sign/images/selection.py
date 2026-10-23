@@ -8,7 +8,6 @@ from pydantic import BaseModel, ConfigDict, Field
 from greg_mitchell.pwn_my_sign.images.png import load_png
 
 Token = Annotated[str, Field(min_length=1, pattern=r"^\S+$")]
-AssetPath = Annotated[str, Field(min_length=1, pattern=r"\S")]
 ReadBytes = Callable[[Path], bytes]
 
 
@@ -17,7 +16,7 @@ class ImageMap(BaseModel):
 
     model_config = ConfigDict(frozen=True, extra="forbid")
 
-    images: Annotated[dict[Token, AssetPath], Field(min_length=1)]
+    images: Annotated[dict[Token, Path], Field(min_length=1)]
 
 
 class ImageSelector:
