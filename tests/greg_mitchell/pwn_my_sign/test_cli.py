@@ -148,7 +148,7 @@ def test_image_test_card_when_builder_fails_returns_failure(tmp_path: Path) -> N
     (
         (["--help"], ("device", "github", "image")),
         (["device", "--help"], ("scan", "send")),
-        (["image", "--help"], ("match", "test-card")),
+        (["image", "--help"], ("make", "match", "test-card")),
         (["github", "--help"], ("status",)),
     ),
 )
@@ -169,6 +169,7 @@ def test_mysign_when_group_help_is_requested_returns_available_commands(
         ["device", "scan", "--help"],
         ["device", "send", "--help"],
         ["image", "test-card", "--help"],
+        ["image", "make", "--help"],
     ),
 )
 def test_mysign_when_help_is_requested_calls_no_device_operations(arguments: list[str]) -> None:

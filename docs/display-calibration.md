@@ -22,17 +22,19 @@ These are **frame/shadow transition estimates**, not precise physical crop bound
 distortion, and extrapolation outside the matched interior affect the estimates. The small interior residual does not give
 equally precise edge measurements or establish a firmware offset.
 
-## Layout decision
+## Device guidance
 
-Keep important content at least **32 pixels inside every edge**. The resulting content box is:
+For this sign, keep text at least **32 pixels inside every edge** where practical. The recommended text area is:
 
 ```text
 x ∈ [32, 1248), y ∈ [32, 688)
 width 1216, height 656
 ```
 
-Backgrounds may fill all 1280 × 720 pixels. Apply the content inset in image generation, keeping the proven encoder geometry.
-The diagnostic's corner labels intentionally probe the physical edges and may be partially obscured.
+This is device-specific visibility advice, not a constraint on artwork or layout templates.
+Artwork and backgrounds may use the full 1280 × 720 canvas. Text outside the recommended area is allowed and may be
+partially obscured by the frame; the renderer currently emits no automatic visibility warning.
+Keep the proven encoder geometry. The diagnostic's corner labels intentionally probe the physical edges.
 
 The grayscale ramp looked broadly correct to the owner. This photo cannot establish absolute brightness, gamma, or
 16 distinct physical shades: the darkest patches measured similarly, and a glare bump near level 6 interrupted

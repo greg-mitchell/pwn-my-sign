@@ -12,13 +12,20 @@ through offline tests and physical upload experiments.
 
 ## Images and fonts
 
-Public fixtures are independently constructed grayscale and checkerboard bytes.
+Public frame fixtures are independently constructed grayscale and checkerboard bytes.
 `scripts/generate_test_fixtures.py` regenerates them without using the encoder,
 Dory's app, font files, or artwork.
 
 The diagnostic image utility loads a font supplied by the user or already present
 on their system. It does not distribute that font. Use appropriately licensed
 fonts and artwork for any assets you choose to share.
+
+The rendered [card fixtures](../tests/fixtures/README.md#rendered-card-examples)
+use geometric artwork constructed by the fixture generator and Pillow's bundled
+subset of Aileron Regular by Sora Sagano. The [font author](https://dotcolon.net/fonts/aileron/)
+permits use, modification, and redistribution without reserving rights.
+Only rendered PNGs are checked in; no font files or personal artwork are distributed.
+The fixture README records the generation command and inputs.
 
 ## Project and dependency licenses
 
@@ -34,6 +41,13 @@ The installed runtime metadata reviewed on 2026-10-22 reports:
 | Bleak | 3.0.1 | MIT |
 | Pillow | 12.3.0 | MIT-CMU |
 | PyObjC runtime/framework packages on macOS | 12.2.2 | MIT |
+
+`PIL` imports in this project refer to **Pillow**, the maintained fork of the
+Python Imaging Library. Pillow's [MIT-CMU license](https://github.com/python-pillow/Pillow/blob/main/LICENSE)
+permits use, modification, and redistribution, including commercial use, subject
+to its notice and attribution conditions. It is a permissive license; the project
+uses Pillow for image loading, layout, grayscale conversion, and PNG output.
+Its installed distribution includes the Pillow and bundled-library notices.
 
 Dependencies are installed separately by `uv`; their source and binary
 distributions supply their own license notices. This table is not a complete

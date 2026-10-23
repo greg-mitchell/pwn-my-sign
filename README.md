@@ -6,7 +6,7 @@ I built this to show service health from a cron job, motivated by recent frequen
 This is an independent, unofficial interoperability project. It is not affiliated with or endorsed by Dory AS.
 Use it with signs you own or are authorized to manage. Product names identify compatibility.
 
-**Working:** GitHub status codes, PNG selection, discovery, and full-screen image uploads from macOS over Bluetooth LE.
+**Working:** GitHub status codes, card building, PNG selection, discovery, and image uploads from macOS over Bluetooth LE.
 **WIP:** change detection workflows and desktop prompts.
 The sign currently needs a physical button press for each upload.
 
@@ -27,7 +27,7 @@ The project follows the namespace package and development tooling used in
 ## Upload a custom image
 
 Prepare an image exactly **1280 × 720 pixels**. The sender converts it to grayscale and 16 levels without resizing or cropping.
-Keep important text and graphics at least **32 pixels** from each edge; backgrounds can fill the screen.
+For the observed sign, keep text at least **32 pixels** from each edge; artwork and backgrounds can fill the screen.
 
 Close the Dory app on your phone, then discover the sign:
 
@@ -71,7 +71,33 @@ uv run mysign device send --device "$MYSIGN_DEVICE" --image private/mac-test.png
 Each card says **SENT FROM MAC**, with a fresh ID and timestamp, and includes a grayscale ramp and corner labels.
 The corner labels probe the image edges, where the frame can hide some pixels.
 The diagnostic currently defaults to a macOS Arial font; `--font` accepts a different TrueType font path.
-General image building and rendering from templates are WIP.
+Use the static card builder below for artwork and reusable layout templates.
+
+## Build a static display card
+
+Supply your own artwork and TrueType or OpenType font. Keep these inputs and finished cards in ignored `private/`:
+
+```sh
+uv run mysign image make --layout data/card-layout.toml --artwork private/artwork.png --font private/font.ttf \
+  --title 'Service health' --status 'All systems operational' --caption 'Ready for work' \
+  --output private/cards/ok.png
+```
+
+Create the output directory first. Omit `--output` to emit PNG bytes on stdout.
+The deterministic 1280 × 720 grayscale output uses an explicitly selected TOML layout template.
+The supplied [split layout](data/card-layout.toml) contains the full artwork on the left and wraps optional title, status,
+and caption on the right. It uses 56-, 40-, and 32-pixel fonts and centers the complete text stack vertically beside the art.
+Copy and edit it to choose box positions, sizes, typography, spacing, and vertical alignment (`top`, `center`, or `bottom`).
+Layout boxes must stay inside the canvas and must not overlap. Text remains aligned left within its box.
+The [artwork-only layout](data/artwork-layout.toml) uses the full canvas without a text region.
+The split template places text 32 pixels from the edges, following the observed device's
+[calibration recommendation](docs/display-calibration.md#device-guidance); this is advisory and artwork may reach any edge.
+Omit any text options you do not need. Blank text takes no space; `--font` is required only when visible text is supplied.
+Explicit line breaks are preserved; words or text blocks that do not fit fail rather than being clipped or shrunk.
+Pillow handles pixel-width wrapping and multiline baselines; trailing invisible whitespace can be discarded.
+Transparent artwork is placed on white, photo orientation is honored, and animated artwork is rejected.
+Rendering completes before output is written, so invalid inputs preserve an existing output file.
+See [synthetic rendered examples](tests/fixtures/README.md#rendered-card-examples) for previews and regeneration instructions.
 
 ## Composable tools
 
@@ -81,7 +107,7 @@ These are the intended interfaces. Only the rows marked **working** are installe
 | --- | --- | --- | --- |
 | `mysign github status` | GitHub's summary endpoint or saved JSON | One status code on stdout | Working |
 | `mysign image match --map images.toml` | One code on stdin | Selected PNG bytes on stdout | Working |
-| `mysign image make` | Text and appearance options | PNG | WIP |
+| `mysign image make` | Explicit layout/artwork, optional text and font | PNG bytes or named file | Working |
 | `mysign device send` | `--image FILE` or `--frame FILE` | Diagnostics on stderr, exit status | Working |
 | `mysign device send --image -` | PNG on stdin | Diagnostics on stderr, exit status | Working |
 | `mysign image test-card` | Output/font options | Diagnostic PNG and ID metadata | Working |
@@ -197,9 +223,9 @@ Documented scheduler recipes will invoke the one-shot poll workflow with absolut
 Scheduling must not start overlapping pollers. Upload remains a separate foreground action while physical wake is required.
 Installing jobs, starting background processes, and posting desktop notifications are future opt-in setup steps.
 
-### Desktop reminders and templates — WIP
+### Desktop reminders — WIP
 
-Desktop helpers and template rendering are tracked in the
+Desktop helpers and optional dynamic rendering are tracked in the
 [implementation plan](docs/implementation-plan.md#optional-desktop-and-rendering-work). Their design boundaries are defined
 in [architecture](docs/architecture.md#button-prompts-and-desktop-integration).
 
