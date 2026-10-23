@@ -25,8 +25,8 @@ Keep later prototypes local rather than creating an unnecessary PR stack.
 | 1. Click domain groups | Install `mysign` with `device` and `image` groups, extract domain operations, preserve leaf behavior. | Complete | Existing sender |
 | 2. GitHub source | Add `mysign github status`, validated summary data, explicit service policies, and offline inputs. | Complete | CLI convention |
 | 3. Image selection and piping | Add `mysign image match`, then PNG stdin support for the sender in a separate feature commit. | Complete | CLI convention |
-| 4. Card building | Add `mysign image make` with explicit artwork/layout inputs and optional text/font. | In review | CLI convention |
-| 5. Workflow integration | Runnable shell examples, state comparisons, upload snapshots, locks, and scheduler docs. | Queued | Source, selection, sender |
+| 4. Card building | Add `mysign image make` with explicit artwork/layout inputs and optional text/font. | Complete | CLI convention |
+| 5. Workflow integration | Runnable shell examples, state comparisons, upload snapshots, locks, and scheduler docs. | In review | Source, selection, sender |
 
 ## Source and selection acceptance
 
@@ -68,7 +68,8 @@ Keep later prototypes local rather than creating an unnecessary PR stack.
   Clean locks on ordinary interruption and document stale-lock recovery after a crash.
 - Test shell workflows as integration checks, separate from subprocess-free Python unit tests.
 - Document systemd/cron and launchd; do not embed a scheduler in any executable or install jobs automatically.
-- Prompt after image validation and before scanning. Define stale-data behavior before unattended use.
+- Prompt after image validation and before scanning. Failed polls retain the last known image for manual upload,
+  without an age gate; schedule polling only.
 
 ## Optional desktop and rendering work
 

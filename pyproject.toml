@@ -61,7 +61,8 @@ lint = "ruff check"
 format = "ruff format"
 typecheck = "ty check"
 test = "pytest"
-check-all = { sequence = ["lint", "typecheck", "test"], ignore_fail = false }
+workflow-test = "bash tests/workflow/run.sh"
+check-all = { sequence = ["lint", "typecheck", "test", "workflow-test"], ignore_fail = false }
 fix-all = { sequence = ["lint --fix", "format"], ignore_fail = false }
 
 [tool.uv]

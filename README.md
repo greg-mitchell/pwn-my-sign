@@ -7,7 +7,7 @@ This is an independent, unofficial interoperability project. It is not affiliate
 Use it with signs you own or are authorized to manage. Product names identify compatibility.
 
 **Working:** GitHub status codes, card building, PNG selection, discovery, and image uploads from macOS over Bluetooth LE.
-**WIP:** change detection workflows and desktop prompts.
+**WIP:** desktop reminders.
 The sign currently needs a physical button press for each upload.
 
 ## Setup
@@ -169,59 +169,55 @@ uv run mysign github status --policy data/github-actions.toml \
   | uv run mysign image match --map private/images.toml > private/selected.png
 ```
 
-### Prepare only changed images — WIP
+### Prepare only changed images
 
-The composition below prepares a complete temporary image before replacing pending. Scheduler and lock integration
-remain WIP.
+Run the one-shot Bash workflow from this checkout after `uv sync`. Select a state directory for this device and use
+that same directory for every poller and uploader targeting it:
 
 ```bash
-set -euo pipefail
 state="${XDG_STATE_HOME:-$HOME/.local/state}/pwn-my-sign/github"
-mkdir -p "$state"
-next="$(mktemp "$state/.pending.XXXXXX")"
-trap 'rm -f "$next"' EXIT
-
-uv run mysign github status --policy data/github-actions.toml \
-  | uv run mysign image match --map private/images.toml > "$next"
-if ! cmp -s "$next" "$state/pending.png"; then
-  mv "$next" "$state/pending.png"
-fi
+bash scripts/workflow/poll.sh --state "$state" --map private/images.toml \
+  --policy data/github-actions.toml --mysign "$PWD/.venv/bin/mysign"
 ```
 
+Omit `--policy` to use GitHub's default indicator and a matching map. `--mysign` selects one executable path;
+it defaults to `mysign` on `PATH`. The script publishes a complete `pending.png` by atomic rename only when bytes change.
+Fetch or selection failure preserves the previous image and returns failure.
+
+The retained image is the last known desired state, even after failed polls. It may be stale; inspect polling errors and
+the source before manually sending it. There is no age gate, automatic upload, or healthy fallback.
 The image artifacts and publication rules are defined in [workflow state](docs/architecture.md#workflow-state).
 
 ### Upload the pending image
 
-Once `pending.png` exists, this Bash workflow is usable with the current sender.
-Run from the project directory with `MYSIGN_DEVICE` set. Run at most one uploader for a device at a time.
+Once `pending.png` exists, run the uploader in the foreground with `MYSIGN_DEVICE` set:
 
 ```bash
-set -euo pipefail
-state="${XDG_STATE_HOME:-$HOME/.local/state}/pwn-my-sign/github"
-snapshot="$(mktemp "$state/.upload.XXXXXX")"
-trap 'rm -f "$snapshot"' EXIT
-cp "$state/pending.png" "$snapshot"
-
-if cmp -s "$snapshot" "$state/last-sent.png"; then
-  printf '%s\n' 'The latest desired image has already been sent.' >&2
-  exit 0
-fi
-
-uv run mysign device send --device "$MYSIGN_DEVICE" --image "$snapshot"
-mv "$snapshot" "$state/last-sent.png"
+bash scripts/workflow/upload.sh --state "$state" --device "$MYSIGN_DEVICE" \
+  --mysign "$PWD/.venv/bin/mysign"
 ```
 
+The uploader snapshots pending, skips an already-sent image, and asks the sender to validate that snapshot before its
+button prompt and Bluetooth scan. Only successful transfer calls advance `last-sent.png` to the snapshot.
+A newer pending image published during the transfer remains available for the next upload.
 The snapshot follows the [workflow state contract](docs/architecture.md#workflow-state).
 
-### Schedule polling — WIP
+### Locks and recovery
 
-Documented scheduler recipes will invoke the one-shot poll workflow with absolute paths and explicit environment variables:
+Each script creates a separate lock directory (`poll.lock` or `upload.lock`) inside the selected state directory.
+An overlapping invocation fails; polling can continue while an upload is in progress.
+Use one state directory per device: separate directories cannot prevent simultaneous transfers to the same sign.
+Normal exit and handled interruption remove temporary files and the script's lock.
 
-- Linux: a systemd oneshot service and timer, or cron with an overlap lock.
-- macOS: a user launchd job; cron is another Unix option.
+A crash or forced kill can leave a lock behind. Read its `pid` file, confirm that the process and any transfer child have
+stopped, then remove that lock's `pid` file and empty directory. Do not remove a lock belonging to an active process.
+An orphaned `.pending.*` or `.upload.*` temporary file may be removed after confirming no workflow is using it.
 
-Scheduling must not start overlapping pollers. Upload remains a separate foreground action while physical wake is required.
-Installing jobs, starting background processes, and posting desktop notifications are future opt-in setup steps.
+### Schedule polling
+
+The [scheduler recipes](docs/workflow-scheduling.md) cover systemd, cron, and launchd with absolute executable paths.
+They schedule only polling; upload remains a foreground action while physical wake is required.
+No command installs jobs or starts a scheduler automatically.
 
 ### Desktop reminders — WIP
 
@@ -239,6 +235,8 @@ uv run poe check-all
 ```
 
 Available tasks, entrypoints, and dependencies are defined in [pyproject.toml](pyproject.toml).
+`check-all` includes offline shell workflow checks with fake commands, separate from the subprocess-free Python tests.
+Run those alone with `uv run poe workflow-test`; they do not contact GitHub or Bluetooth.
 See [the contributor guidelines](AGENTS.md) for required checks, coding conventions, and test rules.
 Install commit hooks with `uv run pre-commit install`.
 

@@ -67,9 +67,11 @@ to that snapshot after successful transfer calls. A newer pending image publishe
 the next upload.
 A source that recovers before upload may select the already-sent image, making an upload unnecessary.
 
-Allow only one poller and one uploader per workflow/device, using scheduler supervision or Unix locks. Define stale-data
-behavior before unattended use. The [README workflow recipes](../README.md#github-workflow) apply these contracts;
-remaining integration work is tracked in the [implementation plan](implementation-plan.md#workflow-acceptance).
+Allow only one poller and one uploader per workflow/device, using scheduler supervision or Unix locks. All invocations
+for the same device share a state directory; locks cannot coordinate separate directories.
+Failed polls preserve the last known desired image, which remains available for manual upload without an age gate.
+Scheduling only polls; uploads remain foreground actions. The [README workflow recipes](../README.md#github-workflow)
+apply these contracts.
 
 ## Button prompts and desktop integration
 
