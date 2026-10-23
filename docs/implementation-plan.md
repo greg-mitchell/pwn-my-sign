@@ -27,6 +27,18 @@ Keep later prototypes local rather than creating an unnecessary PR stack.
 | 3. Image selection and piping | Add `mysign image match`, then PNG stdin support for the sender in a separate feature commit. | Complete | CLI convention |
 | 4. Card building | Add `mysign image make` with explicit artwork/layout inputs and optional text/font. | Complete | CLI convention |
 | 5. Workflow integration | Shell polling/uploading, terminal bell loop, snapshots, locks, and scheduler docs. | In review | Source, selection, sender |
+| 6. Device discovery usability | Make discovery responsive and device names or UUIDs easy to identify and copy. | Queued next | Workflow review |
+
+## Next: device discovery usability
+
+The user reported that `mysign device scan` appeared to hang after the button press, then printed a noisy batch of
+output without an obvious device identifier to copy. Reproduce that experience before changing behavior; the nature
+of the noisy output has not yet been established.
+
+- Show progress and make the scan duration clear, with useful results available promptly.
+- Present concise device names and UUIDs with a clear value to pass to `--device`.
+- Investigate whether unrelated BLE advertisements or diagnostic logs obscure the sign; keep detailed diagnostics opt-in.
+- Verify the revised discovery flow manually with the sign, alongside offline behavioral tests.
 
 ## Source and selection acceptance
 
@@ -72,6 +84,11 @@ Keep later prototypes local rather than creating an unnecessary PR stack.
   without an age gate; schedule polling only.
 - Offer a foreground terminal loop with periodic polling, a bell for unsent changes, and Enter to invoke the uploader.
   Retry polling after failures without offering stale pending that iteration; exit on interruption or EOF at the prompt.
+
+Validation so far: live foreground polling selected the healthy private card, unchanged polling preserved pending,
+foreground upload succeeded, and the user confirmed the card on the physical display. A repeated upload skipped transfer.
+The terminal loop has offline integration coverage. The systemd, cron, and launchd installation recipes remain untested;
+no service or scheduled job was installed during validation.
 
 ## Optional desktop and rendering work
 
