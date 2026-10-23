@@ -1,0 +1,19 @@
+# All coordinates and sizes are pixels on the 1280 x 720 canvas.
+safe_margin = 32
+
+[artwork]
+x = 32
+y = 32
+width = 592
+height = 656
+
+[text]
+x = 656
+y = 32
+width = 592
+height = 656
+title_size = 56
+status_size = 40
+caption_size = 32
+line_spacing = 8
+block_spacing = 16

@@ -12,7 +12,7 @@ The repository supplies general tools and workflow documentation, without redist
 | 3. Establish the project | Complete | Packaged sender and diagnostic, offline tests, developer tooling, and docs. |
 | 4. Compose GitHub status | Complete | Validated source codes select private static cards; simulate every state offline. |
 | 5. Run the workflow | WIP | Atomic pending images, upload snapshots, scheduler recipes, and terminal prompts. |
-| 6. Add convenience | Optional | Templates, notifications, or a thin menu bar helper using the existing commands. |
+| 6. Add convenience | Optional | Dynamic rendering, notifications, or a thin menu bar helper using the existing commands. |
 
 ## PR sequence
 
@@ -25,7 +25,7 @@ Keep later prototypes local rather than creating an unnecessary PR stack.
 | 1. Click domain groups | Install `mysign` with `device` and `image` groups, extract domain operations, preserve leaf behavior. | Complete | Existing sender |
 | 2. GitHub source | Add `mysign github status`, validated summary data, explicit service policies, and offline inputs. | Complete | CLI convention |
 | 3. Image selection and piping | Add `mysign image match`, then PNG stdin support for the sender in a separate feature commit. | Complete | CLI convention |
-| 4. Card building | Add `mysign image make` with explicit artwork/font inputs and a consistent image/text layout. | In review | CLI convention |
+| 4. Card building | Add `mysign image make` with explicit artwork/layout inputs and optional text/font. | In review | CLI convention |
 | 5. Workflow integration | Runnable shell examples, state comparisons, upload snapshots, locks, and scheduler docs. | Queued | Source, selection, sender |
 
 ## Source and selection acceptance
@@ -50,9 +50,11 @@ Keep later prototypes local rather than creating an unnecessary PR stack.
 ## Card acceptance
 
 - Produce deterministic 1280 x 720 grayscale PNGs from user-selected art, fonts, and text.
-- Put the full image on the left and a title, factual status, and caption on the right.
-  Contain the art without cropping, preserve a 32-pixel content inset, and reject text that will not fit.
-- Prebuild private static cards. On-demand template rendering is optional later work.
+- Use an explicit TOML layout with a safe margin, nonoverlapping boxes, and typography settings.
+  The supplied split template puts full artwork on the left and optional title, factual status, and caption on the right.
+  The artwork-only template uses the full safe area. Both declare a 32-pixel content inset.
+  Contain artwork without cropping and reject text that will not fit; omitted text consumes no space and needs no font.
+- Prebuild private static cards. Dynamic rendering from source data is optional later work.
 - Public examples use schematic placeholders or instructions for supplying assets, not meme images or font files.
 
 ## Workflow acceptance

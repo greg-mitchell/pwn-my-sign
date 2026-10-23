@@ -1,3 +1,4 @@
+import tomllib
 from io import BytesIO
 from pathlib import Path
 from unittest.mock import Mock
@@ -8,6 +9,7 @@ from PIL import Image, ImageChops, ImageFont
 
 from greg_mitchell.pwn_my_sign.cli.mysign import main as mysign
 from greg_mitchell.pwn_my_sign.images.card import CardRenderer, CardSpec
+from greg_mitchell.pwn_my_sign.images.layout import CardLayout
 
 
 @pytest.fixture
@@ -19,7 +21,10 @@ def spec(tmp_path: Path) -> CardSpec:
     if not isinstance(bundled, ImageFont.FreeTypeFont):
         raise TypeError("Card tests require Pillow's bundled TrueType font.")
     font.write_bytes(bundled.font_bytes)
-    return CardSpec(artwork=artwork, font=font, title="Service", status="Operational", caption="All systems healthy")
+    layout = CardLayout.model_validate(tomllib.loads(Path("data/card-layout.toml").read_text()))
+    return CardSpec(
+        artwork=artwork, layout=layout, font=font, title="Service", status="Operational", caption="All systems healthy"
+    )
 
 
 @pytest.fixture
@@ -27,6 +32,8 @@ def arguments(spec: CardSpec) -> list[str]:
     return [
         "image",
         "make",
+        "--layout",
+        "data/card-layout.toml",
         "--artwork",
         str(spec.artwork),
         "--font",
@@ -153,7 +160,8 @@ def test_render_when_asset_is_missing_raises_os_error(spec: CardSpec, tmp_path: 
 
 @pytest.mark.parametrize("field", ("artwork", "font"))
 def test_render_when_asset_is_malformed_raises_os_error(spec: CardSpec, field: str) -> None:
-    getattr(spec, field).write_bytes(b"not an asset")
+    path = getattr(spec, field)
+    path.write_bytes(b"not an asset")
 
     with pytest.raises(OSError):
         CardRenderer().render(spec)
@@ -234,9 +242,163 @@ def test_make_when_output_parent_is_missing_returns_failure(arguments: list[str]
 
 
 @pytest.mark.parametrize("option", ("--title", "--status", "--caption"))
-def test_make_when_text_is_blank_returns_failure(arguments: list[str], option: str) -> None:
+def test_make_when_text_is_blank_returns_success(arguments: list[str], option: str) -> None:
     arguments[arguments.index(option) + 1] = " \n "
 
     result = CliRunner().invoke(mysign, arguments)
 
-    assert result.exit_code == 1
+    assert result.exit_code == 0
+
+
+def test_make_when_text_and_font_are_omitted_returns_success(spec: CardSpec) -> None:
+    result = CliRunner().invoke(
+        mysign, ["image", "make", "--layout", "data/card-layout.toml", "--artwork", str(spec.artwork)]
+    )
+
+    assert result.exit_code == 0
+
+
+def test_render_when_font_is_unused_returns_art_only_png(spec: CardSpec, tmp_path: Path) -> None:
+    settings = CardSpec(artwork=spec.artwork, layout=spec.layout, font=tmp_path / "missing.ttf")
+
+    result = CardRenderer().render(settings)
+
+    with Image.open(BytesIO(result)) as image:
+        assert image.crop((656, 32, 1248, 688)).getextrema() == (255, 255)
+
+
+def test_render_when_visible_text_has_no_font_raises_value_error(spec: CardSpec) -> None:
+    settings = spec.model_copy(update={"font": None})
+
+    with pytest.raises(ValueError, match="font is required"):
+        CardRenderer().render(settings)
+
+
+def test_render_when_text_region_is_absent_returns_full_artwork(spec: CardSpec) -> None:
+    layout = CardLayout.model_validate(tomllib.loads(Path("data/artwork-layout.toml").read_text()))
+    settings = CardSpec(artwork=spec.artwork, layout=layout)
+
+    result = CardRenderer().render(settings)
+
+    with Image.open(BytesIO(result)) as image:
+        assert ImageChops.invert(image).getbbox() == (312, 32, 968, 688)
+
+
+def test_render_when_text_region_is_absent_with_visible_text_raises_value_error(spec: CardSpec) -> None:
+    layout = CardLayout.model_validate(tomllib.loads(Path("data/artwork-layout.toml").read_text()))
+    settings = spec.model_copy(update={"layout": layout})
+
+    with pytest.raises(ValueError, match="text region is required"):
+        CardRenderer().render(settings)
+
+
+def test_render_when_artwork_is_below_text_returns_selected_geometry(spec: CardSpec) -> None:
+    layout = spec.layout.model_dump()
+    layout["artwork"].update(x=32, y=360, width=1216, height=328)
+    layout["text"].update(x=32, y=32, width=1216, height=296)
+    settings = spec.model_copy(update={"layout": CardLayout.model_validate(layout)})
+
+    result = CardRenderer().render(settings)
+
+    with Image.open(BytesIO(result)) as image:
+        assert ImageChops.invert(image.crop((0, 360, 1280, 720))).getbbox() == (476, 0, 804, 328)
+
+
+@pytest.mark.parametrize("name", ("split-wrapped", "title-only", "artwork-only", "alternate-layout"))
+def test_fixture_when_card_is_loaded_returns_safe_grayscale_png(name: str) -> None:
+    with Image.open(Path("tests/fixtures/cards") / f"{name}.png") as image:
+        bounds = ImageChops.invert(image).getbbox()
+
+        assert (
+            image.mode == "L"
+            and image.size == (1280, 720)
+            and bounds is not None
+            and bounds[0] >= 32
+            and bounds[1] >= 32
+            and bounds[2] <= 1248
+            and bounds[3] <= 688
+        )
+
+
+def test_render_when_title_and_status_are_blank_returns_caption_at_text_box_top(spec: CardSpec) -> None:
+    settings = spec.model_copy(update={"title": " \n", "status": ""})
+
+    result = CardRenderer().render(settings)
+
+    with Image.open(BytesIO(result)) as image:
+        bounds = ImageChops.invert(image.crop((656, 0, 1248, 720))).getbbox()
+        assert bounds is not None and bounds[1] == 32
+
+
+def test_render_when_layout_has_larger_margin_returns_repositioned_art(spec: CardSpec) -> None:
+    layout = spec.layout.model_dump()
+    layout.update(safe_margin=64, artwork={"x": 64, "y": 64, "width": 400, "height": 592})
+    layout["text"].update(x=496, y=64, width=720, height=592)
+    settings = spec.model_copy(update={"layout": CardLayout.model_validate(layout)})
+
+    result = CardRenderer().render(settings)
+
+    with Image.open(BytesIO(result)) as image:
+        assert ImageChops.invert(image.crop((0, 0, 480, 720))).getbbox() == (64, 160, 464, 560)
+
+
+def test_render_when_text_box_is_narrower_raises_word_overflow(spec: CardSpec) -> None:
+    layout = spec.layout.model_dump()
+    layout["text"]["width"] = 50
+    settings = spec.model_copy(update={"layout": CardLayout.model_validate(layout)})
+
+    with pytest.raises(ValueError, match="wide"):
+        CardRenderer().render(settings)
+
+
+def test_render_when_font_size_changes_returns_different_text(spec: CardSpec) -> None:
+    original = CardRenderer().render(spec)
+    layout = spec.layout.model_dump()
+    layout["text"]["title_size"] = 24
+    settings = spec.model_copy(update={"layout": CardLayout.model_validate(layout)})
+
+    result = CardRenderer().render(settings)
+
+    assert result != original
+
+
+def test_render_when_text_box_is_shorter_raises_vertical_overflow(spec: CardSpec) -> None:
+    layout = spec.layout.model_dump()
+    layout["text"]["height"] = 40
+    settings = spec.model_copy(update={"layout": CardLayout.model_validate(layout)})
+
+    with pytest.raises(ValueError, match="fit"):
+        CardRenderer().render(settings)
+
+
+@pytest.mark.parametrize(
+    "document",
+    (
+        "not TOML",
+        "safe_margin = 32",
+        Path("data/card-layout.toml").read_text().replace("safe_margin = 32", "safe_margin = 40"),
+        Path("data/card-layout.toml").read_text().replace("x = 656", "x = 32"),
+        Path("data/card-layout.toml").read_text().replace("title_size = 56", "title_size = 0"),
+    ),
+    ids=("malformed", "incomplete", "unsafe-box", "overlapping", "invalid-size"),
+)
+def test_make_when_layout_is_invalid_returns_no_stdout(arguments: list[str], tmp_path: Path, document: str) -> None:
+    path = tmp_path / "layout.toml"
+    path.write_text(document)
+    arguments[arguments.index("--layout") + 1] = str(path)
+
+    result = CliRunner().invoke(mysign, arguments)
+
+    assert result.stdout_bytes == b""
+
+
+def test_make_when_layout_is_invalid_returns_preserved_output(arguments: list[str], tmp_path: Path) -> None:
+    layout = tmp_path / "invalid.toml"
+    layout.write_text("invalid")
+    arguments[arguments.index("--layout") + 1] = str(layout)
+    output = tmp_path / "card.png"
+    output.write_bytes(b"old card")
+
+    CliRunner().invoke(mysign, [*arguments, "--output", str(output)])
+
+    assert output.read_bytes() == b"old card"

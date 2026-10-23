@@ -39,7 +39,9 @@ Python and testing conventions are defined in [the contributor guidelines](../AG
   produce no image output.
 - Renderers produce deterministic static 1280 x 720 grayscale PNG bytes or write an explicitly named output file.
   Rendering completes before output begins; invalid inputs produce no image and preserve an existing output file.
-  Artwork and fonts are explicit inputs. Templates preserve that image interface.
+  Artwork and TOML layout templates are explicit inputs; visible text requires an explicit font.
+  Layouts declare their safe margin, nonoverlapping content boxes, and text typography. Text blocks are optional.
+  Rendering has no source interpretation or scheduling state.
 - The sender validates the complete input before prompting or scanning Bluetooth. PNG stdin must be static and
   1280 x 720; file inputs retain the image formats supported by the sender.
 - Data belongs on stdout; progress, prompts, and errors belong on stderr.
