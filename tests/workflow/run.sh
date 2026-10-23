@@ -2,6 +2,7 @@
 set -euo pipefail
 
 repo="$(cd "$(dirname "$0")/../.." && pwd -P)"
+real_sleep="$(command -v sleep)"
 workspace="$(mktemp -d "${TMPDIR:-/tmp}/mysign-workflow.XXXXXX")"
 trap 'rm -rf "$workspace"' EXIT
 
@@ -18,7 +19,7 @@ await_file() {
     while [ ! -e "$1" ]; do
         attempt=$((attempt + 1))
         [ "$attempt" -lt 500 ] || fail "Timed out awaiting $1"
-        sleep 0.01
+        "$real_sleep" 0.01
     done
 }
 
@@ -290,6 +291,8 @@ test_upload_when_interrupted_does_not_record_success() {
     expect_failure wait "$upload_pid"
     [ ! -e "$FAKE_STATE/last-sent.png" ]
 }
+
+source "$repo/tests/workflow/watch-tests.sh"
 
 count=0
 for test in $(declare -F | awk '$3 ~ /^test_/ {print $3}'); do

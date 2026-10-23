@@ -10,11 +10,15 @@ block_until_released() {
 
 case "$1 $2" in
     'github status')
+        printf 'poll\n' >> "$FAKE_HOME/poll-calls"
         printf '%s\n' "$@" > "$FAKE_HOME/source-args"
         if [ "${FAKE_BLOCK_SOURCE:-0}" = 1 ]; then
             block_until_released
         fi
         printf '%s\n' ok
+        if [ -f "$FAKE_HOME/source-result" ]; then
+            exit "$(cat "$FAKE_HOME/source-result")"
+        fi
         exit "${FAKE_SOURCE_RESULT:-0}" ;;
     'image match')
         printf '%s\n' "$@" > "$FAKE_HOME/match-args"

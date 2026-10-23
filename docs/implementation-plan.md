@@ -26,7 +26,7 @@ Keep later prototypes local rather than creating an unnecessary PR stack.
 | 2. GitHub source | Add `mysign github status`, validated summary data, explicit service policies, and offline inputs. | Complete | CLI convention |
 | 3. Image selection and piping | Add `mysign image match`, then PNG stdin support for the sender in a separate feature commit. | Complete | CLI convention |
 | 4. Card building | Add `mysign image make` with explicit artwork/layout inputs and optional text/font. | Complete | CLI convention |
-| 5. Workflow integration | Runnable shell examples, state comparisons, upload snapshots, locks, and scheduler docs. | In review | Source, selection, sender |
+| 5. Workflow integration | Shell polling/uploading, terminal bell loop, snapshots, locks, and scheduler docs. | In review | Source, selection, sender |
 
 ## Source and selection acceptance
 
@@ -70,6 +70,8 @@ Keep later prototypes local rather than creating an unnecessary PR stack.
 - Document systemd/cron and launchd; do not embed a scheduler in any executable or install jobs automatically.
 - Prompt after image validation and before scanning. Failed polls retain the last known image for manual upload,
   without an age gate; schedule polling only.
+- Offer a foreground terminal loop with periodic polling, a bell for unsent changes, and Enter to invoke the uploader.
+  Retry polling after failures without offering stale pending that iteration; exit on interruption or EOF at the prompt.
 
 ## Optional desktop and rendering work
 

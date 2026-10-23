@@ -6,7 +6,7 @@ I built this to show service health from a cron job, motivated by recent frequen
 This is an independent, unofficial interoperability project. It is not affiliated with or endorsed by Dory AS.
 Use it with signs you own or are authorized to manage. Product names identify compatibility.
 
-**Working:** GitHub status codes, card building, PNG selection, discovery, and image uploads from macOS over Bluetooth LE.
+**Working:** GitHub status codes, card building, PNG selection, terminal reminders, and image uploads over Bluetooth LE.
 **WIP:** desktop reminders.
 The sign currently needs a physical button press for each upload.
 
@@ -202,9 +202,30 @@ button prompt and Bluetooth scan. Only successful transfer calls advance `last-s
 A newer pending image published during the transfer remains available for the next upload.
 The snapshot follows the [workflow state contract](docs/architecture.md#workflow-state).
 
+### Watch in a terminal
+
+For a simple foreground alternative to installing a scheduled job, leave this running in a terminal:
+
+```bash
+bash scripts/workflow/watch.sh --state "$state" --map private/images.toml \
+  --policy data/github-actions.toml --device "$MYSIGN_DEVICE" \
+  --mysign "$PWD/.venv/bin/mysign" --interval 300
+```
+
+The loop polls immediately. When pending differs from last-sent, it writes a terminal bell and offers Enter to upload.
+Press Enter, then press the sign's button when the uploader prompts. Upload validation and transfer use the existing
+one-shot uploader. It sends a snapshot; updates published during transfer remain pending for the next run.
+
+If you leave the prompt alone, it polls again after the interval and reminds you while an update remains unsent.
+After an upload, an already-sent result, or an error, it waits the interval before polling again.
+The default interval is 300 seconds; supply a positive whole number. Failed polls preserve pending and show an error,
+without offering the retained image for upload that iteration. Ctrl-C stops the loop; EOF at the reminder prompt ends it.
+Bell sound, visual flashing, and background-tab badges depend on your terminal's bell settings.
+This loop installs no service or notification helper. Keep this terminal's stdin attached so it can receive Enter.
+
 ### Locks and recovery
 
-Each script creates a separate lock directory (`poll.lock` or `upload.lock`) inside the selected state directory.
+Each script creates a separate lock directory (`poll.lock`, `upload.lock`, or `watch.lock`) in the selected state directory.
 An overlapping invocation fails; polling can continue while an upload is in progress.
 Use one state directory per device: separate directories cannot prevent simultaneous transfers to the same sign.
 Normal exit and handled interruption remove temporary files and the script's lock.
