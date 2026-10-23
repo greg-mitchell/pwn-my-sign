@@ -30,6 +30,7 @@ The installed runtime metadata reviewed on 2026-10-22 reports:
 
 | Dependency | Version reviewed | Declared license |
 | --- | --- | --- |
+| Click | 8.5.0 | BSD-3-Clause |
 | Bleak | 3.0.1 | MIT |
 | Pillow | 12.3.0 | MIT-CMU |
 | PyObjC runtime/framework packages on macOS | 12.2.2 | MIT |

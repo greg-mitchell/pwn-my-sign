@@ -1,7 +1,3 @@
-import argparse
-import datetime
-import json
-import uuid
 from pathlib import Path
 
 from PIL import Image, ImageDraw, ImageFont
@@ -37,27 +33,3 @@ def make_test_card(test_id: str, timestamp: str, font_path: Path) -> Image.Image
     draw.text((1270, 706), "BR", font=small, fill=0, anchor="rd")
     draw.rectangle((0, 0, 1279, 719), outline=0, width=4)
     return image
-
-
-def main() -> None:
-    parser = argparse.ArgumentParser(description="Create a visibly distinct Dory upload test")
-    parser.add_argument("--output", type=Path, default=Path("private/mac-test.png"))
-    parser.add_argument(
-        "--font",
-        type=Path,
-        default=Path("/System/Library/Fonts/Supplemental/Arial Bold.ttf"),
-    )
-    arguments = parser.parse_args()
-    test_id = f"MAC-{uuid.uuid4().hex[:6].upper()}"
-    timestamp = datetime.datetime.now().astimezone().isoformat(timespec="seconds")
-    image = make_test_card(test_id, timestamp, arguments.font)
-    arguments.output.parent.mkdir(parents=True, exist_ok=True)
-    image.save(arguments.output)
-    arguments.output.with_suffix(".json").write_text(
-        json.dumps({"test_id": test_id, "created_at": timestamp}, indent=2) + "\n"
-    )
-    print(f"Created {arguments.output}: SENT FROM MAC / {test_id}")
-
-
-if __name__ == "__main__":
-    main()

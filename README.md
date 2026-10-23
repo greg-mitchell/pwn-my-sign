@@ -18,7 +18,9 @@ Install [uv](https://docs.astral.sh/uv/getting-started/installation/), then run 
 uv sync --locked
 ```
 
-Python 3.13.6 or later is required. `uv` creates the environment and installs the executable commands.
+Python 3.13.6 or later is required. `uv` creates the environment and installs the `mysign` executable.
+Run `uv run mysign --help` to discover its domain groups and commands.
+This replaces the earlier `dory`, `dory-send`, and `dory-test-card` executables; no compatibility aliases are installed.
 The project follows the namespace package and development tooling used in
 [greg-mitchell/portfolio](https://github.com/greg-mitchell/portfolio).
 
@@ -30,15 +32,15 @@ Keep important text and graphics at least **32 pixels** from each edge; backgrou
 Close the Dory app on your phone, then discover the sign:
 
 ```sh
-uv run dory scan
+uv run mysign device scan
 ```
 
 Allow Bluetooth access and press the sign's physical button when prompted.
 Use its advertised name or the UUID printed by the scan. On macOS, that UUID is local to the scanning computer.
 
 ```sh
-export DORY_DEVICE='your-sign-name-or-macos-uuid'
-uv run dory-send --device "$DORY_DEVICE" --image image.png
+export MYSIGN_DEVICE='your-sign-name-or-macos-uuid'
+uv run mysign device send --device "$MYSIGN_DEVICE" --image image.png
 ```
 
 The sender prints **“Waiting for the selected sign; press its button now.”** to stderr.
@@ -48,14 +50,13 @@ The scan wait defaults to 60 seconds and can be changed with `--timeout`.
 A zero exit status means the transfer calls completed. Check the display: the captured protocol provides no observed
 application acknowledgement that the intended image is physically visible.
 
-`dory upload` is an alternative spelling with the same options. Captured headerless payloads can be replayed using
-`--frame` instead of `--image`.
+Captured headerless payloads can be replayed using `--frame` instead of `--image`.
 
 ## Build a recognizable test image
 
 ```sh
-uv run dory-test-card --output private/mac-test.png
-uv run dory-send --device "$DORY_DEVICE" --image private/mac-test.png
+uv run mysign image test-card --output private/mac-test.png
+uv run mysign device send --device "$MYSIGN_DEVICE" --image private/mac-test.png
 ```
 
 Each card says **SENT FROM MAC**, with a fresh ID and timestamp, and includes a grayscale ramp and corner labels.
@@ -69,16 +70,14 @@ These are the intended interfaces. Only the rows marked **working** are installe
 
 | Command | Input | Output | Status |
 | --- | --- | --- | --- |
-| `github-status` | GitHub's status endpoint | One status code on stdout | WIP |
-| `match-image --map images.toml` | One code on stdin | Selected PNG bytes on stdout | WIP |
-| `make-image` | Text and appearance options | PNG | WIP |
-| `dory-send` | `--image FILE` or `--frame FILE` | Diagnostics on stderr, exit status | Working |
-| `dory-send --image -` | PNG on stdin | Diagnostics on stderr, exit status | WIP |
-| `dory-test-card` | Output/font options | Diagnostic PNG and ID metadata | Working |
+| `mysign github status` | GitHub's status endpoint | One status code on stdout | WIP |
+| `mysign image match --map images.toml` | One code on stdin | Selected PNG bytes on stdout | WIP |
+| `mysign image make` | Text and appearance options | PNG | WIP |
+| `mysign device send` | `--image FILE` or `--frame FILE` | Diagnostics on stderr, exit status | Working |
+| `mysign device send --image -` | PNG on stdin | Diagnostics on stderr, exit status | WIP |
+| `mysign image test-card` | Output/font options | Diagnostic PNG and ID metadata | Working |
 
-Data belongs on stdout; diagnostics belong on stderr. Each tool runs once and exits.
-Source adapters own domain-specific interpretation. Matchers own configuration. The sender owns Bluetooth and encoding.
-Polling, comparisons, files, locks, and scheduling belong in documented shell composition.
+See [architecture](docs/architecture.md) for command boundaries, stream contracts, and workflow invariants.
 
 ## GitHub workflow
 
@@ -99,13 +98,13 @@ curl --fail --silent --show-error --max-time 15 \
   jq -er '.status.indicator | select(. == "none" or . == "minor" or . == "major" or . == "critical")'
 ```
 
-`github-status` will package that domain-specific operation. Fetch failures and unknown codes must fail rather than
+`mysign github status` will package that domain-specific operation. Fetch failures and unknown codes must fail rather than
 silently selecting the healthy image.
 
 ### Prepare only changed images — WIP
 
 First build one static PNG per code. A mapping file will select an asset without rendering it on every poll.
-The following describes the target workflow; `github-status` and `match-image` are not implemented yet.
+The following describes the target workflow; `mysign github status` and `mysign image match` are not implemented yet.
 
 ```bash
 set -euo pipefail
@@ -114,19 +113,18 @@ mkdir -p "$state"
 next="$(mktemp "$state/.pending.XXXXXX")"
 trap 'rm -f "$next"' EXIT
 
-github-status | match-image --map images.toml > "$next"
+uv run mysign github status | uv run mysign image match --map images.toml > "$next"
 if ! cmp -s "$next" "$state/pending.png"; then
   mv "$next" "$state/pending.png"
 fi
 ```
 
-The temporary file sits beside the destination so the rename publishes a complete image atomically.
-On failure, the previous pending image survives. Prebuilt assets are deterministic; polling does not add a new timestamp.
+The image artifacts and publication rules are defined in [workflow state](docs/architecture.md#workflow-state).
 
 ### Upload the pending image
 
 Once `pending.png` exists, this Bash workflow is usable with the current sender.
-Run from the project directory with `DORY_DEVICE` set. Run at most one uploader for a device at a time.
+Run from the project directory with `MYSIGN_DEVICE` set. Run at most one uploader for a device at a time.
 
 ```bash
 set -euo pipefail
@@ -140,13 +138,11 @@ if cmp -s "$snapshot" "$state/last-sent.png"; then
   exit 0
 fi
 
-uv run dory-send --device "$DORY_DEVICE" --image "$snapshot"
+uv run mysign device send --device "$MYSIGN_DEVICE" --image "$snapshot"
 mv "$snapshot" "$state/last-sent.png"
 ```
 
-The prompt tells the person at the computer when to press the sign's button. A failed transfer leaves `last-sent.png`
-unchanged. If polling publishes a new image during upload, the snapshot still records exactly what was sent;
-the newer pending image remains available for the next upload.
+The snapshot follows the [workflow state contract](docs/architecture.md#workflow-state).
 
 ### Schedule polling — WIP
 
@@ -160,31 +156,22 @@ Installing jobs, starting background processes, and posting desktop notification
 
 ### Desktop reminders and templates — WIP
 
-The initial user interface is the sender's terminal prompt and progress output.
-A notification or menu bar helper can later show **update pending**, then invoke the same upload workflow.
-macOS menu bar utilities can run without a main window; a SwiftBar plugin can also host a script-driven menu.
-See [architecture](docs/architecture.md#button-prompts-and-desktop-integration) for the options and workflow states.
-
-Rendering from a template on a status change is a later enhancement. It should produce the same PNG interface and preserve
-the code → image → sender boundary.
+Desktop helpers and template rendering are tracked in the
+[implementation plan](docs/implementation-plan.md#optional-desktop-and-rendering-work). Their design boundaries are defined
+in [architecture](docs/architecture.md#button-prompts-and-desktop-integration).
 
 ## Development
 
-The source lives in `src/greg_mitchell/pwn_my_sign/`, with matching tests under `tests/greg_mitchell/pwn_my_sign/`.
-Run commands from the project root:
+Run commands from the project root; `uv run` syncs the environment implicitly:
 
 ```sh
 uv run poe format
 uv run poe check-all
 ```
 
-Poe defines `lint`, `format`, `typecheck` (`ty`), `test` (pytest), `check-all`, and `fix-all` in `pyproject.toml`.
-Pre-commit uses the same Ruff, type, and test checks. After initializing a Git checkout, hooks can be installed with
-`uv run pre-commit install`.
-
-Unit tests use injected dependencies and mocks; they never scan Bluetooth, fetch the network, or send an image.
-The public compressed fixtures are independently generated grayscale and checkerboard patterns.
-Android bug reports, raw Bluetooth logs, device identities, photos, and generated evidence stay under ignored `private/`.
+Available tasks, entrypoints, and dependencies are defined in [pyproject.toml](pyproject.toml).
+See [the contributor guidelines](AGENTS.md) for required checks, coding conventions, and test rules.
+Install commit hooks with `uv run pre-commit install`.
 
 Investigation scripts are retained in `scripts/investigation/`, outside production lint/type-check scope.
 To rerun the photo analysis, install the optional investigation dependencies:
