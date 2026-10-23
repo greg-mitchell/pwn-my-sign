@@ -23,8 +23,8 @@ Keep later prototypes local rather than creating an unnecessary PR stack.
 | Unit | Scope | State | Dependency |
 | --- | --- | --- | --- |
 | 1. Click domain groups | Install `mysign` with `device` and `image` groups, extract domain operations, preserve leaf behavior. | Complete | Existing sender |
-| 2. GitHub source | Add `mysign github status`, validated summary data, explicit service policies, and offline inputs. | In review | CLI convention |
-| 3. Image selection and piping | Add `mysign image match`, then PNG stdin support for the sender in a separate feature commit. | Queued | CLI convention |
+| 2. GitHub source | Add `mysign github status`, validated summary data, explicit service policies, and offline inputs. | Complete | CLI convention |
+| 3. Image selection and piping | Add `mysign image match`, then PNG stdin support for the sender in a separate feature commit. | In progress | CLI convention |
 | 4. Card building | Add `mysign image make` with explicit artwork/font inputs and a consistent image/text layout. | Queued | CLI convention |
 | 5. Workflow integration | Runnable shell examples, state comparisons, upload snapshots, locks, and scheduler docs. | Queued | Source, selection, sender |
 
@@ -43,6 +43,7 @@ Keep later prototypes local rather than creating an unnecessary PR stack.
 - Reject unknown or incomplete source data; never infer healthy from a failed fetch or malformed response.
 - Select an exact token from stdin using a TOML map. Resolve asset paths relative to that map and emit the original PNG bytes.
   Read and validate the complete selected image before writing stdout; lookup or read failure produces no image.
+  Require static 1280 x 720 PNGs; reject animation and other dimensions before publishing an image.
 - Accept PNG stdin with `mysign device send --image -`; validate before prompting or scanning Bluetooth.
 - Simulate Actions-only, unrelated, simultaneous, and widespread failures offline.
 

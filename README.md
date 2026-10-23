@@ -6,8 +6,8 @@ I built this to show service health from a cron job, motivated by recent frequen
 This is an independent, unofficial interoperability project. It is not affiliated with or endorsed by Dory AS.
 Use it with signs you own or are authorized to manage. Product names identify compatibility.
 
-**Working:** GitHub status codes, discovery, and full-screen image uploads from macOS over Bluetooth LE.
-**WIP:** image selection, change detection workflows, and desktop prompts.
+**Working:** GitHub status codes, PNG selection, discovery, and full-screen image uploads from macOS over Bluetooth LE.
+**WIP:** change detection workflows and desktop prompts.
 The sign currently needs a physical button press for each upload.
 
 ## Setup
@@ -71,7 +71,7 @@ These are the intended interfaces. Only the rows marked **working** are installe
 | Command | Input | Output | Status |
 | --- | --- | --- | --- |
 | `mysign github status` | GitHub's summary endpoint or saved JSON | One status code on stdout | Working |
-| `mysign image match --map images.toml` | One code on stdin | Selected PNG bytes on stdout | WIP |
+| `mysign image match --map images.toml` | One code on stdin | Selected PNG bytes on stdout | Working |
 | `mysign image make` | Text and appearance options | PNG | WIP |
 | `mysign device send` | `--image FILE` or `--frame FILE` | Diagnostics on stderr, exit status | Working |
 | `mysign device send --image -` | PNG on stdin | Diagnostics on stderr, exit status | WIP |
@@ -112,10 +112,32 @@ See the [policy settings](src/greg_mitchell/pwn_my_sign/github/policy.py),
 [classification policy](src/greg_mitchell/pwn_my_sign/github/interpretation.py), and
 [offline examples](tests/fixtures/README.md#github-summary-examples) for details.
 
+### Select a private static card
+
+Prepare one static 1280 × 720 PNG per code and save a map such as `private/images.toml`:
+
+```toml
+[images]
+ok = "cards/ok.png"
+degraded = "cards/degraded.png"
+actions-outage = "cards/actions-outage.png"
+widespread-outage = "cards/widespread-outage.png"
+```
+
+Paths resolve relative to the map, so these cards live under `private/cards/`. Absolute paths also work.
+Tokens match exactly, including case; stdin accepts one token with an optional LF or CRLF terminator.
+The selector validates the selected PNG completely before emitting its original bytes. Animated PNGs, wrong dimensions,
+unknown codes, invalid maps, and unreadable or damaged images fail with no image output. Unselected assets are not read.
+
+```sh
+uv run mysign github status --policy data/github-actions.toml \
+  | uv run mysign image match --map private/images.toml > private/selected.png
+```
+
 ### Prepare only changed images — WIP
 
-First build one static PNG per code. A mapping file will select an asset without rendering it on every poll.
-The following describes the target workflow; `mysign image match` is not implemented yet.
+The composition below prepares a complete temporary image before replacing pending. Scheduler and lock integration
+remain WIP.
 
 ```bash
 set -euo pipefail
@@ -124,7 +146,8 @@ mkdir -p "$state"
 next="$(mktemp "$state/.pending.XXXXXX")"
 trap 'rm -f "$next"' EXIT
 
-uv run mysign github status | uv run mysign image match --map images.toml > "$next"
+uv run mysign github status --policy data/github-actions.toml \
+  | uv run mysign image match --map private/images.toml > "$next"
 if ! cmp -s "$next" "$state/pending.png"; then
   mv "$next" "$state/pending.png"
 fi

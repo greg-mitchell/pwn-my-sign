@@ -141,7 +141,7 @@ def test_image_test_card_when_builder_fails_returns_failure(tmp_path: Path) -> N
     (
         (["--help"], ("device", "github", "image")),
         (["device", "--help"], ("scan", "send")),
-        (["image", "--help"], ("test-card",)),
+        (["image", "--help"], ("match", "test-card")),
         (["github", "--help"], ("status",)),
     ),
 )
