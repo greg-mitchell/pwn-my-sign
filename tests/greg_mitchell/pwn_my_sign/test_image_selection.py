@@ -1,6 +1,6 @@
 from io import BytesIO
 from pathlib import Path
-from unittest.mock import Mock, call
+from unittest.mock import Mock
 from zlib import crc32
 
 import pytest
@@ -10,7 +10,7 @@ from PIL.PngImagePlugin import PngInfo
 
 from greg_mitchell.pwn_my_sign.cli.mysign import main as mysign
 from greg_mitchell.pwn_my_sign.images.png import load_png
-from greg_mitchell.pwn_my_sign.images.selection import ImageSelector, ReadBytes
+from greg_mitchell.pwn_my_sign.images.selection import ImageSelector
 
 
 @pytest.fixture
@@ -45,12 +45,18 @@ def test_select_when_path_is_absolute_returns_original_bytes(map_path: Path, png
     assert result == png
 
 
-def test_select_when_paths_are_relative_calls_reader_for_map_and_selected_asset(png: bytes) -> None:
-    reader = Mock(spec=ReadBytes, side_effect=(b'[images]\nok = "../cards/ok.png"', png))
+def test_select_when_map_is_nested_returns_asset_relative_to_map(tmp_path: Path, png: bytes) -> None:
+    settings = tmp_path / "settings"
+    settings.mkdir()
+    cards = tmp_path / "cards"
+    cards.mkdir()
+    (cards / "ok.png").write_bytes(png)
+    map_path = settings / "images.toml"
+    map_path.write_text('[images]\nok = "../cards/ok.png"')
 
-    ImageSelector(reader).select(Path("settings/images.toml"), BytesIO(b"ok"))
+    result = ImageSelector().select(map_path, BytesIO(b"ok"))
 
-    assert reader.call_args_list == [call(Path("settings/images.toml")), call(Path("settings/../cards/ok.png"))]
+    assert result == png
 
 
 @pytest.mark.parametrize("token", (b"", b"\n", b" ok", b"ok ", b"ok\n\n", b"ok\r", b"ok\nother", b"\xff"))
@@ -93,11 +99,9 @@ def test_select_when_asset_is_unreadable_raises_os_error(map_path: Path, asset: 
         ImageSelector().select(map_path, BytesIO(b"ok"))
 
 
-def test_select_when_map_read_fails_raises_os_error() -> None:
-    reader = Mock(spec=ReadBytes, side_effect=OSError("cannot read map"))
-
-    with pytest.raises(OSError, match="cannot read map"):
-        ImageSelector(reader).select(Path("images.toml"), BytesIO(b"ok"))
+def test_select_when_map_is_missing_raises_os_error(tmp_path: Path) -> None:
+    with pytest.raises(OSError):
+        ImageSelector().select(tmp_path / "missing.toml", BytesIO(b"ok"))
 
 
 def test_select_when_stream_read_fails_raises_os_error() -> None:
@@ -109,7 +113,7 @@ def test_select_when_stream_read_fails_raises_os_error() -> None:
 
 
 def test_load_png_when_image_is_valid_returns_decoded_pixels(png: bytes) -> None:
-    result = load_png(png)
+    result = load_png(BytesIO(png))
 
     assert result.tobytes() == b"\xff" * (1280 * 720)
 
@@ -117,7 +121,7 @@ def test_load_png_when_image_is_valid_returns_decoded_pixels(png: bytes) -> None
 @pytest.mark.parametrize("cut", (1, 4, 8, 12, 20))
 def test_load_png_when_image_is_truncated_raises_value_error(png: bytes, cut: int) -> None:
     with pytest.raises(ValueError):
-        load_png(png[:-cut])
+        load_png(BytesIO(png[:-cut]))
 
 
 def test_load_png_when_chunk_checksum_is_corrupt_raises_value_error(png: bytes) -> None:
@@ -125,7 +129,7 @@ def test_load_png_when_chunk_checksum_is_corrupt_raises_value_error(png: bytes) 
     damaged[png.index(b"IDAT") + 4] ^= 1
 
     with pytest.raises(ValueError):
-        load_png(bytes(damaged))
+        load_png(BytesIO(damaged))
 
 
 def test_load_png_when_pixels_cannot_decode_raises_value_error(png: bytes) -> None:
@@ -135,7 +139,7 @@ def test_load_png_when_pixels_cannot_decode_raises_value_error(png: bytes) -> No
     damaged = png[:start] + (len(chunk) - 4).to_bytes(4) + chunk + crc32(chunk).to_bytes(4) + png[start + length + 12 :]
 
     with pytest.raises(ValueError):
-        load_png(damaged)
+        load_png(BytesIO(damaged))
 
 
 @pytest.mark.parametrize(("format", "size"), (("JPEG", (1280, 720)), ("PNG", (1279, 720)), ("PNG", (1280, 719))))
@@ -144,7 +148,7 @@ def test_load_png_when_format_or_size_is_wrong_raises_value_error(format: str, s
     Image.new("L", size).save(stream, format=format)
 
     with pytest.raises(ValueError):
-        load_png(stream.getvalue())
+        load_png(stream)
 
 
 def test_load_png_when_image_is_animated_raises_value_error() -> None:
@@ -154,7 +158,32 @@ def test_load_png_when_image_is_animated_raises_value_error() -> None:
     )
 
     with pytest.raises(ValueError, match="Animated"):
-        load_png(stream.getvalue())
+        load_png(stream)
+
+
+def test_load_png_when_stream_is_a_file_returns_decoded_pixels(tmp_path: Path, png: bytes) -> None:
+    image_path = tmp_path / "card.png"
+    image_path.write_bytes(png)
+
+    with image_path.open("rb") as stream:
+        result = load_png(stream)
+
+    assert result.tobytes() == b"\xff" * (1280 * 720)
+
+
+def test_load_png_when_image_is_valid_returns_with_stream_open(png: bytes) -> None:
+    with BytesIO(png) as stream:
+        load_png(stream)
+
+        assert not stream.closed
+
+
+def test_load_png_when_image_is_invalid_returns_with_stream_open() -> None:
+    with BytesIO(b"not PNG") as stream:
+        with pytest.raises(ValueError):
+            load_png(stream)
+
+        assert not stream.closed
 
 
 def test_select_when_selected_asset_is_invalid_raises_value_error(map_path: Path) -> None:

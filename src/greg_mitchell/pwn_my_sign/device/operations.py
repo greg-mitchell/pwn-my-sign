@@ -1,5 +1,6 @@
 import asyncio
 from collections.abc import Awaitable, Callable
+from io import BytesIO
 from pathlib import Path
 from typing import BinaryIO
 
@@ -52,7 +53,7 @@ class DeviceOperations:
             if image_path is not None or frame_path is not None:
                 raise ImageInputError("Provide only one image or frame source.")
             try:
-                with load_png(image_stream.read()) as image:
+                with BytesIO(image_stream.read()) as stream, load_png(stream) as image:
                     payload = encode_image(image)
             except (OSError, ValueError) as error:
                 raise ImageInputError(str(error)) from error
