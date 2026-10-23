@@ -29,6 +29,8 @@ The project follows the namespace package and development tooling used in
 Prepare an image exactly **1280 × 720 pixels**. The sender converts it to grayscale and 16 levels without resizing or cropping.
 For the observed sign, keep text at least **32 pixels** from each edge; artwork and backgrounds can fill the screen.
 
+### Find the device name or UUID
+
 Close the Dory app on your phone, then discover the sign:
 
 ```sh
@@ -37,6 +39,7 @@ uv run mysign device scan
 
 Allow Bluetooth access and press the sign's physical button when prompted.
 Use its advertised name or the UUID printed by the scan. On macOS, that UUID is local to the scanning computer.
+The `MAC-…` label printed on a diagnostic test card identifies that image, not the Bluetooth device.
 
 ```sh
 export MYSIGN_DEVICE='your-sign-name-or-macos-uuid'
@@ -176,12 +179,14 @@ that same directory for every poller and uploader targeting it:
 
 ```bash
 state="${XDG_STATE_HOME:-$HOME/.local/state}/pwn-my-sign/github"
-bash scripts/workflow/poll.sh --state "$state" --map private/images.toml \
-  --policy data/github-actions.toml --mysign "$PWD/.venv/bin/mysign"
+uv run scripts/workflow/poll.sh --state "$state" --map private/images.toml \
+  --policy data/github-actions.toml
 ```
 
-Omit `--policy` to use GitHub's default indicator and a matching map. `--mysign` selects one executable path;
-it defaults to `mysign` on `PATH`. The script publishes a complete `pending.png` by atomic rename only when bytes change.
+Omit `--policy` to use GitHub's default indicator and a matching map. `uv run` supplies the environment with `mysign`
+on `PATH`. With an activated environment, run the executable scripts directly instead.
+`--mysign` optionally selects a different executable, useful for scheduler configuration and offline checks.
+The script publishes a complete `pending.png` by atomic rename only when bytes change.
 Fetch or selection failure preserves the previous image and returns failure.
 
 The retained image is the last known desired state, even after failed polls. It may be stale; inspect polling errors and
@@ -193,8 +198,7 @@ The image artifacts and publication rules are defined in [workflow state](docs/a
 Once `pending.png` exists, run the uploader in the foreground with `MYSIGN_DEVICE` set:
 
 ```bash
-bash scripts/workflow/upload.sh --state "$state" --device "$MYSIGN_DEVICE" \
-  --mysign "$PWD/.venv/bin/mysign"
+uv run scripts/workflow/upload.sh --state "$state" --device "$MYSIGN_DEVICE"
 ```
 
 The uploader snapshots pending, skips an already-sent image, and asks the sender to validate that snapshot before its
@@ -204,12 +208,13 @@ The snapshot follows the [workflow state contract](docs/architecture.md#workflow
 
 ### Watch in a terminal
 
+Use the name or UUID from [device discovery](#find-the-device-name-or-uuid) for `MYSIGN_DEVICE`.
 For a simple foreground alternative to installing a scheduled job, leave this running in a terminal:
 
 ```bash
-bash scripts/workflow/watch.sh --state "$state" --map private/images.toml \
+uv run scripts/workflow/watch.sh --state "$state" --map private/images.toml \
   --policy data/github-actions.toml --device "$MYSIGN_DEVICE" \
-  --mysign "$PWD/.venv/bin/mysign" --interval 300
+  --interval 300
 ```
 
 The loop polls immediately. When pending differs from last-sent, it writes a terminal bell and offers Enter to upload.
