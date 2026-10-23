@@ -85,7 +85,7 @@ See [architecture](docs/architecture.md) for command boundaries, stream contract
 
 ```sh
 uv run mysign github status
-uv run mysign github status --policy tests/fixtures/github/default-services.toml
+uv run mysign github status --policy data/github-actions.toml
 uv run mysign github status --input tests/fixtures/github/healthy.json
 ```
 
@@ -98,8 +98,8 @@ The default prints [GitHub's indicator](https://www.githubstatus.com/api):
 | `major` | Major impact. |
 | `critical` | Critical impact. |
 
-An explicit TOML policy can select this project's configurable service classification with `mode = "services"`.
-Policy files otherwise default to GitHub's indicator. The supplied example uses these outputs:
+The [supplied policy](data/github-actions.toml) prioritizes GitHub Actions and uses these outputs.
+Service policies explicitly set their mode, priority services, outage threshold, and every output code:
 
 | Code | Meaning |
 | --- | --- |

@@ -5,7 +5,7 @@ from typing import BinaryIO
 import click
 
 from greg_mitchell.pwn_my_sign.github.interpretation import status_code
-from greg_mitchell.pwn_my_sign.github.policy import StatusPolicy, read_policy
+from greg_mitchell.pwn_my_sign.github.policy import IndicatorPolicy, read_policy
 from greg_mitchell.pwn_my_sign.github.source import GitHubSource
 
 
@@ -33,7 +33,7 @@ def status(operations: GitHubSource | None, policy: BinaryIO | None, timeout: fl
     """Print one validated status code; errors produce no code."""
     operations = operations or GitHubSource()
     try:
-        settings = read_policy(policy) if policy is not None else StatusPolicy()
+        settings = read_policy(policy) if policy is not None else IndicatorPolicy()
         summary = operations.read(source) if source is not None else operations.fetch(timeout)
         code = status_code(summary, settings)
     except (OSError, HTTPException, ValueError) as error:

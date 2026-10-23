@@ -36,10 +36,19 @@ def test_github_status_when_no_policy_is_supplied_returns_provider_indicator(ope
     assert result.stdout == f"{rollup}\n"
 
 
+def test_github_status_when_no_policy_and_no_actions_service_returns_provider_indicator(document: bytes) -> None:
+    document = document.replace(b'"br0l2tvcx85d"', b'"arbitrary-service"')
+    source = GitHubSource(Mock(spec=SummaryOpener))
+
+    result = CliRunner().invoke(mysign, ["github", "status", "--input", "-"], obj=source, input=document)
+
+    assert result.stdout == "none\n"
+
+
 def test_github_status_when_service_policy_is_supplied_returns_policy_code(operations: Mock) -> None:
     result = CliRunner().invoke(
         mysign,
-        ["github", "status", "--policy", "tests/fixtures/github/default-services.toml"],
+        ["github", "status", "--policy", "data/github-actions.toml"],
         obj=operations,
         catch_exceptions=False,
     )
@@ -149,7 +158,7 @@ def test_github_status_when_source_fails_returns_error_on_stderr(operations: Moc
 
 
 @pytest.mark.parametrize(
-    "policy_arguments", ((), ("--policy", "tests/fixtures/github/default-services.toml")), ids=("indicator", "services")
+    "policy_arguments", ((), ("--policy", "data/github-actions.toml")), ids=("indicator", "services")
 )
 @pytest.mark.parametrize(
     "document",
@@ -203,7 +212,7 @@ def test_github_status_when_synthetic_example_is_selected_returns_policy_code(na
             "github",
             "status",
             "--policy",
-            "tests/fixtures/github/default-services.toml",
+            "data/github-actions.toml",
             "--input",
             f"tests/fixtures/github/{name}.json",
         ],
@@ -214,27 +223,24 @@ def test_github_status_when_synthetic_example_is_selected_returns_policy_code(na
     assert result.stdout == f"{expected}\n"
 
 
-@pytest.mark.parametrize(
-    "config",
-    (
-        'mode = "services"\n[codes]\nhealthy = "ready"\n',
-        'mode = "indicator"\n',
-        '[codes]\nhealthy = "ready"\n',
-    ),
-    ids=("services", "explicit-indicator", "default-indicator"),
-)
+@pytest.mark.parametrize(("mode", "expected"), (("services", "ready"), ("indicator", "none")))
 def test_github_status_when_policy_is_supplied_with_stdin_returns_configured_code(
-    document: bytes, tmp_path: Path, config: str
+    document: bytes, tmp_path: Path, service_policy_document: bytes, mode: str, expected: str
 ) -> None:
+    config = (
+        service_policy_document.replace(b'healthy = "ok"', b'healthy = "ready"')
+        if mode == "services"
+        else b'mode = "indicator"'
+    )
     policy_file = tmp_path / "policy.toml"
-    policy_file.write_text(config)
+    policy_file.write_bytes(config)
     source = GitHubSource(Mock(spec=SummaryOpener))
 
     result = CliRunner().invoke(
         mysign, ["github", "status", "--policy", str(policy_file), "--input", "-"], obj=source, input=document
     )
 
-    assert result.stdout == ("ready\n" if 'mode = "services"' in config else "none\n")
+    assert result.stdout == f"{expected}\n"
 
 
 @pytest.mark.parametrize(
@@ -273,9 +279,11 @@ def test_github_status_when_policy_file_is_missing_returns_no_code(operations: M
     assert (result.exit_code, result.stdout) == (2, "")
 
 
-def test_github_status_when_priority_service_is_missing_returns_no_code(document: bytes, tmp_path: Path) -> None:
+def test_github_status_when_priority_service_is_missing_returns_no_code(
+    document: bytes, tmp_path: Path, service_policy_document: bytes
+) -> None:
     policy_file = tmp_path / "policy.toml"
-    policy_file.write_text('mode = "services"\npriority_service_ids = ["absent"]\n')
+    policy_file.write_bytes(service_policy_document.replace(b'"br0l2tvcx85d"', b'"absent"'))
     source = GitHubSource(Mock(spec=SummaryOpener))
 
     result = CliRunner().invoke(
@@ -286,23 +294,41 @@ def test_github_status_when_priority_service_is_missing_returns_no_code(document
 
 
 @pytest.mark.parametrize(
-    ("config", "outage_index", "expected"),
+    ("changes", "outage_index", "expected"),
     (
         (
-            'mode = "services"\npriority_service_ids = ["example-api"]\n[codes]\npriority_outage = "api-down"\n',
+            (
+                (b'"br0l2tvcx85d"', b'"example-api"'),
+                (b'priority_outage = "actions-outage"', b'priority_outage = "api-down"'),
+            ),
             1,
             "api-down",
         ),
-        ('mode = "services"\noutage_threshold = 1\n[codes]\nwidespread_outage = "many-down"\n', 0, "many-down"),
-        ('mode = "services"\n[codes]\nhealthy = "ready"\n', None, "ready"),
+        (
+            (
+                (b"outage_threshold = 2", b"outage_threshold = 1"),
+                (b'widespread_outage = "widespread-outage"', b'widespread_outage = "many-down"'),
+            ),
+            0,
+            "many-down",
+        ),
+        (((b'healthy = "ok"', b'healthy = "ready"'),), None, "ready"),
     ),
     ids=("custom-priority", "custom-threshold", "custom-code"),
 )
 def test_github_status_when_supplied_policy_changes_classification_returns_configured_code(
-    operations: Mock, tmp_path: Path, config: str, outage_index: int | None, expected: str
+    operations: Mock,
+    tmp_path: Path,
+    service_policy_document: bytes,
+    changes: tuple[tuple[bytes, bytes], ...],
+    outage_index: int | None,
+    expected: str,
 ) -> None:
+    config = service_policy_document
+    for original, replacement in changes:
+        config = config.replace(original, replacement)
     policy_file = tmp_path / "policy.toml"
-    policy_file.write_text(config)
+    policy_file.write_bytes(config)
     summary = operations.fetch.return_value
     if outage_index is not None:
         components = tuple(
@@ -316,3 +342,39 @@ def test_github_status_when_supplied_policy_changes_classification_returns_confi
     result = CliRunner().invoke(mysign, ["github", "status", "--policy", str(policy_file)], obj=operations)
 
     assert result.stdout == f"{expected}\n"
+
+
+def test_github_status_when_service_setting_is_omitted_returns_no_code(
+    operations: Mock, tmp_path: Path, incomplete_service_policy_document: bytes
+) -> None:
+    policy_file = tmp_path / "policy.toml"
+    policy_file.write_bytes(incomplete_service_policy_document)
+
+    result = CliRunner().invoke(mysign, ["github", "status", "--policy", str(policy_file)], obj=operations)
+
+    assert (result.exit_code, result.stdout) == (1, "")
+
+
+def test_github_status_when_service_setting_is_omitted_calls_no_source(
+    operations: Mock, tmp_path: Path, incomplete_service_policy_document: bytes
+) -> None:
+    policy_file = tmp_path / "policy.toml"
+    policy_file.write_bytes(incomplete_service_policy_document)
+
+    CliRunner().invoke(mysign, ["github", "status", "--policy", str(policy_file)], obj=operations)
+
+    assert operations.mock_calls == []
+
+
+@pytest.mark.parametrize(
+    "settings", (b"priority_service_ids = []", b"outage_threshold = 2", b'[codes]\nhealthy = "ready"')
+)
+def test_github_status_when_indicator_file_contains_service_settings_calls_no_source(
+    operations: Mock, tmp_path: Path, settings: bytes
+) -> None:
+    policy_file = tmp_path / "policy.toml"
+    policy_file.write_bytes(b'mode = "indicator"\n' + settings)
+
+    CliRunner().invoke(mysign, ["github", "status", "--policy", str(policy_file)], obj=operations)
+
+    assert operations.mock_calls == []

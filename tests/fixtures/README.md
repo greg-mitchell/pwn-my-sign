@@ -6,8 +6,8 @@
 Only the Actions component ID is a real API identifier; other IDs and service combinations are schematic.
 No live API responses, incidents, device identities, or private assets are included.
 
-`github/default-services.toml` explicitly selects the project's service policy with Actions as its priority service.
-It is a schematic configuration example; personal settings stay outside tracked examples.
+The [static GitHub Actions policy](../../data/github-actions.toml) explicitly sets all service settings and output codes.
+The scenarios below are tested using that same file; personal settings stay outside tracked examples.
 
 | File | Example service policy |
 | --- | --- |
@@ -21,7 +21,7 @@ It is a schematic configuration example; personal settings stay outside tracked 
 Run a simulation from the project root:
 
 ```sh
-uv run mysign github status --policy tests/fixtures/github/default-services.toml \
+uv run mysign github status --policy data/github-actions.toml \
   --input tests/fixtures/github/actions-only.json
 ```
 

@@ -5,12 +5,12 @@ from greg_mitchell.pwn_my_sign.github.models import (
     Rollup,
     Summary,
 )
-from greg_mitchell.pwn_my_sign.github.policy import PolicyMode, StatusPolicy
+from greg_mitchell.pwn_my_sign.github.policy import IndicatorPolicy, StatusPolicy
 
 
 def status_code(summary: Summary, policy: StatusPolicy) -> str:
     """Return the provider indicator or apply the explicitly selected service policy."""
-    if policy.mode == PolicyMode.INDICATOR:
+    if isinstance(policy, IndicatorPolicy):
         return summary.status.indicator
     services = tuple(component for component in summary.components if component.showcase and not component.group)
     if not services:

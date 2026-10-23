@@ -21,7 +21,7 @@ from greg_mitchell.pwn_my_sign.github.models import (
     Status,
     Summary,
 )
-from greg_mitchell.pwn_my_sign.github.policy import OutputCodes, PolicyMode, StatusPolicy
+from greg_mitchell.pwn_my_sign.github.policy import IndicatorPolicy, ServicePolicy
 from greg_mitchell.pwn_my_sign.github.source import MAX_SUMMARY_BYTES, SUMMARY_URL, GitHubSource, SummaryOpener
 
 
@@ -33,11 +33,6 @@ def document() -> bytes:
 @pytest.fixture
 def summary(document: bytes) -> Summary:
     return Summary.model_validate_json(document)
-
-
-@pytest.fixture
-def service_policy() -> StatusPolicy:
-    return StatusPolicy(mode=PolicyMode.SERVICES)
 
 
 @pytest.mark.parametrize(
@@ -56,7 +51,7 @@ def service_policy() -> StatusPolicy:
     ),
 )
 def test_status_code_when_services_report_health_returns_policy_code(
-    summary: Summary, service_policy: StatusPolicy, states: tuple[str, ...], rollup: str, expected: str
+    summary: Summary, service_policy: ServicePolicy, states: tuple[str, ...], rollup: str, expected: str
 ) -> None:
     components = tuple(
         component.model_copy(update={"status": ComponentStatus(state)})
@@ -71,7 +66,7 @@ def test_status_code_when_services_report_health_returns_policy_code(
 
 @pytest.mark.parametrize(("showcase", "group"), ((False, False), (True, True)))
 def test_status_code_when_outage_is_hidden_or_group_returns_priority_outage(
-    summary: Summary, service_policy: StatusPolicy, showcase: bool, group: bool
+    summary: Summary, service_policy: ServicePolicy, showcase: bool, group: bool
 ) -> None:
     actions = summary.components[0].model_copy(update={"status": ComponentStatus.MAJOR_OUTAGE})
     other = Component(id="hidden", status=ComponentStatus.MAJOR_OUTAGE, showcase=showcase, group=group)
@@ -84,7 +79,7 @@ def test_status_code_when_outage_is_hidden_or_group_returns_priority_outage(
 
 @pytest.mark.parametrize(("showcase", "group"), ((False, False), (True, True)))
 def test_status_code_when_only_hidden_or_group_service_is_impaired_returns_healthy(
-    summary: Summary, service_policy: StatusPolicy, showcase: bool, group: bool
+    summary: Summary, service_policy: ServicePolicy, showcase: bool, group: bool
 ) -> None:
     other = Component(id="hidden", status=ComponentStatus.MAJOR_OUTAGE, showcase=showcase, group=group)
     summary = summary.model_copy(update={"components": (*summary.components, other)})
@@ -96,7 +91,7 @@ def test_status_code_when_only_hidden_or_group_service_is_impaired_returns_healt
 
 @pytest.mark.parametrize("state", (IncidentStatus.INVESTIGATING, IncidentStatus.IDENTIFIED, IncidentStatus.MONITORING))
 def test_status_code_when_incident_is_open_with_none_rollup_returns_degraded(
-    summary: Summary, service_policy: StatusPolicy, state: IncidentStatus
+    summary: Summary, service_policy: ServicePolicy, state: IncidentStatus
 ) -> None:
     incident = Incident(id="incident", status=state, impact=Rollup.CRITICAL)
     summary = summary.model_copy(update={"incidents": (incident,)})
@@ -108,7 +103,7 @@ def test_status_code_when_incident_is_open_with_none_rollup_returns_degraded(
 
 @pytest.mark.parametrize("state", (IncidentStatus.RESOLVED, IncidentStatus.POSTMORTEM))
 def test_status_code_when_incident_is_closed_returns_healthy(
-    summary: Summary, service_policy: StatusPolicy, state: IncidentStatus
+    summary: Summary, service_policy: ServicePolicy, state: IncidentStatus
 ) -> None:
     incident = Incident(id="incident", status=state, impact=Rollup.MAJOR)
     summary = summary.model_copy(update={"incidents": (incident,)})
@@ -128,7 +123,7 @@ def test_status_code_when_incident_is_closed_returns_healthy(
     ),
 )
 def test_status_code_when_maintenance_is_reported_returns_code_for_activity(
-    summary: Summary, service_policy: StatusPolicy, state: MaintenanceStatus, expected: str
+    summary: Summary, service_policy: ServicePolicy, state: MaintenanceStatus, expected: str
 ) -> None:
     summary = summary.model_copy(update={"scheduled_maintenances": (Maintenance(id="maintenance", status=state),)})
 
@@ -411,7 +406,7 @@ def test_github_source_fetch_when_timeout_is_invalid_calls_no_opener(timeout: fl
 
 @pytest.mark.parametrize(("field", "value"), (("showcase", False), ("group", True)))
 def test_status_code_when_priority_service_is_not_visible_leaf_raises_error(
-    document: bytes, service_policy: StatusPolicy, field: str, value: bool
+    document: bytes, service_policy: ServicePolicy, field: str, value: bool
 ) -> None:
     payload = json.loads(document)
     payload["components"][0][field] = value
@@ -434,7 +429,7 @@ def test_github_source_read_when_actions_is_absent_returns_provider_summary(docu
 @pytest.mark.parametrize("rollup", tuple(Rollup))
 def test_status_code_when_default_policy_is_used_returns_provider_indicator(summary: Summary, rollup: Rollup) -> None:
     summary = summary.model_copy(update={"status": Status(indicator=rollup)})
-    policy = StatusPolicy()
+    policy = IndicatorPolicy()
 
     result = status_code(summary, policy)
 
@@ -443,7 +438,7 @@ def test_status_code_when_default_policy_is_used_returns_provider_indicator(summ
 
 def test_status_code_when_indicator_has_no_actions_returns_provider_indicator(summary: Summary) -> None:
     summary = summary.model_copy(update={"components": summary.components[1:]})
-    policy = StatusPolicy()
+    policy = IndicatorPolicy()
 
     result = status_code(summary, policy)
 
@@ -456,82 +451,100 @@ def test_status_code_when_indicator_has_hidden_priority_service_returns_provider
 ) -> None:
     actions = summary.components[0].model_copy(update={field: value})
     summary = summary.model_copy(update={"components": (actions, *summary.components[1:])})
-    policy = StatusPolicy()
+    policy = IndicatorPolicy()
 
     result = status_code(summary, policy)
 
     assert result == "none"
 
 
-def test_status_code_when_configured_priority_is_missing_raises_error(summary: Summary) -> None:
-    policy = StatusPolicy(mode=PolicyMode.SERVICES, priority_service_ids=("absent",))
+def test_status_code_when_configured_priority_is_missing_raises_error(
+    summary: Summary, service_policy: ServicePolicy
+) -> None:
+    policy = service_policy.model_copy(update={"priority_service_ids": ("absent",)})
 
     with pytest.raises(ValueError, match="absent"):
         status_code(summary, policy)
 
 
-def test_status_code_when_any_configured_priority_is_missing_raises_error(summary: Summary) -> None:
-    policy = StatusPolicy(mode=PolicyMode.SERVICES, priority_service_ids=("example-api", "absent"))
+def test_status_code_when_any_configured_priority_is_missing_raises_error(
+    summary: Summary, service_policy: ServicePolicy
+) -> None:
+    policy = service_policy.model_copy(update={"priority_service_ids": ("example-api", "absent")})
 
     with pytest.raises(ValueError, match="absent"):
         status_code(summary, policy)
 
 
-def test_status_code_when_later_configured_priority_has_outage_returns_priority_code(summary: Summary) -> None:
+def test_status_code_when_later_configured_priority_has_outage_returns_priority_code(
+    summary: Summary, service_policy: ServicePolicy
+) -> None:
     outage = summary.components[2].model_copy(update={"status": ComponentStatus.PARTIAL_OUTAGE})
     summary = summary.model_copy(update={"components": (*summary.components[:2], outage)})
-    policy = StatusPolicy(mode=PolicyMode.SERVICES, priority_service_ids=("example-api", "example-pages"))
+    policy = service_policy.model_copy(update={"priority_service_ids": ("example-api", "example-pages")})
 
     result = status_code(summary, policy)
 
     assert result == "actions-outage"
 
 
-def test_status_code_when_threshold_is_raised_returns_priority_before_widespread(summary: Summary) -> None:
+def test_status_code_when_threshold_is_raised_returns_priority_before_widespread(
+    summary: Summary, service_policy: ServicePolicy
+) -> None:
     components = tuple(
         component.model_copy(update={"status": ComponentStatus.MAJOR_OUTAGE}) if index < 2 else component
         for index, component in enumerate(summary.components)
     )
     summary = summary.model_copy(update={"components": components})
-    policy = StatusPolicy(mode=PolicyMode.SERVICES, outage_threshold=3)
+    policy = service_policy.model_copy(update={"outage_threshold": 3})
 
     result = status_code(summary, policy)
 
     assert result == "actions-outage"
 
 
-def test_status_code_when_priorities_are_disabled_returns_degraded_for_single_outage(summary: Summary) -> None:
+def test_status_code_when_priorities_are_disabled_returns_degraded_for_single_outage(
+    summary: Summary, service_policy: ServicePolicy
+) -> None:
     actions = summary.components[0].model_copy(update={"status": ComponentStatus.MAJOR_OUTAGE})
     summary = summary.model_copy(update={"components": (actions, *summary.components[1:])})
-    policy = StatusPolicy(mode=PolicyMode.SERVICES, priority_service_ids=())
+    policy = service_policy.model_copy(update={"priority_service_ids": ()})
 
     result = status_code(summary, policy)
 
     assert result == "degraded"
 
 
-def test_status_code_when_priorities_are_disabled_returns_healthy_for_arbitrary_services(summary: Summary) -> None:
+def test_status_code_when_priorities_are_disabled_returns_healthy_for_arbitrary_services(
+    summary: Summary, service_policy: ServicePolicy
+) -> None:
     summary = summary.model_copy(update={"components": summary.components[1:]})
-    policy = StatusPolicy(mode=PolicyMode.SERVICES, priority_service_ids=())
+    policy = service_policy.model_copy(update={"priority_service_ids": ()})
 
     result = status_code(summary, policy)
 
     assert result == "ok"
 
 
-def test_status_code_when_degraded_code_is_configured_returns_custom_code(summary: Summary) -> None:
+def test_status_code_when_degraded_code_is_configured_returns_custom_code(
+    summary: Summary, service_policy: ServicePolicy
+) -> None:
     summary = summary.model_copy(update={"status": Status(indicator=Rollup.MINOR)})
-    policy = StatusPolicy(mode=PolicyMode.SERVICES, codes=OutputCodes(degraded="impaired"))
+    policy = service_policy.model_copy(
+        update={"codes": service_policy.codes.model_copy(update={"degraded": "impaired"})}
+    )
 
     result = status_code(summary, policy)
 
     assert result == "impaired"
 
 
-def test_status_code_when_service_policy_has_no_visible_leaves_raises_error(summary: Summary) -> None:
+def test_status_code_when_service_policy_has_no_visible_leaves_raises_error(
+    summary: Summary, service_policy: ServicePolicy
+) -> None:
     components = tuple(component.model_copy(update={"showcase": False}) for component in summary.components)
     summary = summary.model_copy(update={"components": components})
-    policy = StatusPolicy(mode=PolicyMode.SERVICES, priority_service_ids=())
+    policy = service_policy.model_copy(update={"priority_service_ids": ()})
 
     with pytest.raises(ValueError, match="at least one visible leaf"):
         status_code(summary, policy)

@@ -1,8 +1,8 @@
 import tomllib
 from enum import StrEnum
-from typing import Annotated, BinaryIO, Self
+from typing import Annotated, BinaryIO, Literal, Self
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, TypeAdapter, model_validator
 
 MAX_POLICY_BYTES = 64 * 1024
 Token = Annotated[str, Field(min_length=1, pattern=r"^\S+$")]
@@ -18,10 +18,10 @@ class OutputCodes(BaseModel):
 
     model_config = ConfigDict(frozen=True, extra="forbid")
 
-    healthy: Token = "ok"
-    degraded: Token = "degraded"
-    priority_outage: Token = "actions-outage"
-    widespread_outage: Token = "widespread-outage"
+    healthy: Token
+    degraded: Token
+    priority_outage: Token
+    widespread_outage: Token
 
     @model_validator(mode="after")
     def validate_distinct_codes(self) -> Self:
@@ -31,21 +31,33 @@ class OutputCodes(BaseModel):
         return self
 
 
-class StatusPolicy(BaseModel):
-    """Default to GitHub's indicator; opt into configurable service classification."""
+class IndicatorPolicy(BaseModel):
+    """Use GitHub's indicator without any service classification settings."""
 
     model_config = ConfigDict(frozen=True, extra="forbid")
 
-    mode: PolicyMode = PolicyMode.INDICATOR
-    priority_service_ids: tuple[Token, ...] = ("br0l2tvcx85d",)
-    outage_threshold: Annotated[int, Field(gt=0, strict=True)] = 2
-    codes: OutputCodes = Field(default_factory=OutputCodes)
+    mode: Literal[PolicyMode.INDICATOR] = PolicyMode.INDICATOR
+
+
+class ServicePolicy(BaseModel):
+    """Require explicit service identities, outage threshold, and output tokens."""
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    mode: Literal[PolicyMode.SERVICES]
+    priority_service_ids: tuple[Token, ...]
+    outage_threshold: Annotated[int, Field(gt=0, strict=True)]
+    codes: OutputCodes
 
     @model_validator(mode="after")
     def validate_unique_priority_ids(self) -> Self:
         if len(frozenset(self.priority_service_ids)) != len(self.priority_service_ids):
             raise ValueError("Priority service IDs must be unique.")
         return self
+
+
+type StatusPolicy = Annotated[IndicatorPolicy | ServicePolicy, Field(discriminator="mode")]
+_POLICY_ADAPTER: TypeAdapter[StatusPolicy] = TypeAdapter(StatusPolicy)
 
 
 def read_policy(stream: BinaryIO) -> StatusPolicy:
@@ -57,4 +69,4 @@ def read_policy(stream: BinaryIO) -> StatusPolicy:
         if size > MAX_POLICY_BYTES:
             raise ValueError(f"Policy exceeds {MAX_POLICY_BYTES} bytes.")
         chunks.append(chunk)
-    return StatusPolicy.model_validate(tomllib.loads(b"".join(chunks).decode("utf-8")))
+    return _POLICY_ADAPTER.validate_python(tomllib.loads(b"".join(chunks).decode("utf-8")))

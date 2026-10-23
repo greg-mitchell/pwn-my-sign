@@ -24,7 +24,9 @@ independent of one another's domains.
 
 Provider summary validation is separate from user policy. GitHub's indicator is the default output;
 an explicit `--policy FILE` selects typed TOML settings for optional service classification.
-No policy is discovered from global files or the environment.
+Policy files require an explicit mode; service mode also requires priority service IDs, an outage threshold, and all codes.
+Indicator policies accept no service settings. The [static Actions policy](../data/github-actions.toml) supplies a complete
+example, selected only by its explicit path. No policy is discovered from global files or the environment.
 
 Scheduling, comparisons, persistence, and locks belong in Unix shell composition. Commands do not embed a job manager.
 Python and testing conventions are defined in [the contributor guidelines](../AGENTS.md).

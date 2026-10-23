@@ -33,11 +33,13 @@ Keep later prototypes local rather than creating an unnecessary PR stack.
 - Fetch GitHub's summary with a positive finite socket timeout, a response-size limit, and no automatic retries.
   A socket timeout is not a hard deadline for the entire command.
 - Default output remains GitHub's indicator: `none`, `minor`, `major`, or `critical`.
-- An explicit TOML service policy configures priority services, outage count threshold, and output tokens.
-  The example prioritizes Actions and reserves widespread outage for reports across multiple visible services;
+- An explicit TOML service policy requires priority services, outage count threshold, and all output tokens.
+  The [static Actions policy](../data/github-actions.toml) names GitHub Actions and reserves widespread outage
+  for reports across multiple visible services;
   a critical rollup alone is insufficient. An Actions-only partial or major outage selects its priority code,
   even with a critical rollup. Other degradation, maintenance, or unresolved incidents select a degraded code.
-  Configuration defaults to indicator mode and fails before fetching when invalid; no implicit discovery occurs.
+  Policy files require an explicit mode and fail before fetching when invalid; indicator policies reject service settings.
+  No policy file is loaded implicitly, and no service-specific defaults live in Python.
 - Reject unknown or incomplete source data; never infer healthy from a failed fetch or malformed response.
 - Select an exact token from stdin using a TOML map. Resolve asset paths relative to that map and emit the original PNG bytes.
   Read and validate the complete selected image before writing stdout; lookup or read failure produces no image.
