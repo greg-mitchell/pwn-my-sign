@@ -67,14 +67,21 @@ to that snapshot after successful transfer calls. A newer pending image publishe
 the next upload.
 A source that recovers before upload may select the already-sent image, making an upload unnecessary.
 
-Allow only one poller and one uploader per workflow/device, using scheduler supervision or Unix locks. Define stale-data
-behavior before unattended use. The [README workflow recipes](../README.md#github-workflow) apply these contracts;
-remaining integration work is tracked in the [implementation plan](implementation-plan.md#workflow-acceptance).
+Allow only one poller and one uploader per workflow/device, using scheduler supervision or Unix locks. All invocations
+for the same device share a state directory; locks cannot coordinate separate directories.
+Failed polls preserve the last known desired image, which remains available for manual upload without an age gate.
+Scheduling only polls; uploads remain foreground actions. The [README workflow recipes](../README.md#github-workflow)
+apply these contracts.
 
 ## Button prompts and desktop integration
 
 The terminal prompt is the primary interface while uploads require a physical button press. Prompt after validation and
 before discovery, so the person knows when to wake the sign.
+
+An optional foreground shell loop invokes the one-shot poller and rings a terminal bell while desired content differs
+from last-sent. Enter invokes the same uploader; its prompt supplies the button timing. The loop polls again when its
+input interval expires, retries after errors, and exits on interruption or EOF at its prompt. Failed polls do not offer stale
+pending content for upload during that iteration. It installs no scheduler and keeps no separate reminder history.
 
 An optional desktop helper observes local workflow state and invokes the same upload operation. It can distinguish
 up-to-date, update-pending, waiting-for-button, sending, completed, and failed states. It owns presentation rather than

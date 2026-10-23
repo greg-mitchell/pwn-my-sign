@@ -6,8 +6,8 @@ I built this to show service health from a cron job, motivated by recent frequen
 This is an independent, unofficial interoperability project. It is not affiliated with or endorsed by Dory AS.
 Use it with signs you own or are authorized to manage. Product names identify compatibility.
 
-**Working:** GitHub status codes, card building, PNG selection, discovery, and image uploads from macOS over Bluetooth LE.
-**WIP:** change detection workflows and desktop prompts.
+**Working:** GitHub status codes, card building, PNG selection, terminal reminders, and image uploads over Bluetooth LE.
+**WIP:** desktop reminders.
 The sign currently needs a physical button press for each upload.
 
 ## Setup
@@ -29,6 +29,8 @@ The project follows the namespace package and development tooling used in
 Prepare an image exactly **1280 × 720 pixels**. The sender converts it to grayscale and 16 levels without resizing or cropping.
 For the observed sign, keep text at least **32 pixels** from each edge; artwork and backgrounds can fill the screen.
 
+### Find the device name or UUID
+
 Close the Dory app on your phone, then discover the sign:
 
 ```sh
@@ -37,6 +39,7 @@ uv run mysign device scan
 
 Allow Bluetooth access and press the sign's physical button when prompted.
 Use its advertised name or the UUID printed by the scan. On macOS, that UUID is local to the scanning computer.
+The `MAC-…` label printed on a diagnostic test card identifies that image, not the Bluetooth device.
 
 ```sh
 export MYSIGN_DEVICE='your-sign-name-or-macos-uuid'
@@ -169,59 +172,78 @@ uv run mysign github status --policy data/github-actions.toml \
   | uv run mysign image match --map private/images.toml > private/selected.png
 ```
 
-### Prepare only changed images — WIP
+### Prepare only changed images
 
-The composition below prepares a complete temporary image before replacing pending. Scheduler and lock integration
-remain WIP.
+Run the one-shot Bash workflow from this checkout after `uv sync`. Select a state directory for this device and use
+that same directory for every poller and uploader targeting it:
 
 ```bash
-set -euo pipefail
 state="${XDG_STATE_HOME:-$HOME/.local/state}/pwn-my-sign/github"
-mkdir -p "$state"
-next="$(mktemp "$state/.pending.XXXXXX")"
-trap 'rm -f "$next"' EXIT
-
-uv run mysign github status --policy data/github-actions.toml \
-  | uv run mysign image match --map private/images.toml > "$next"
-if ! cmp -s "$next" "$state/pending.png"; then
-  mv "$next" "$state/pending.png"
-fi
+uv run scripts/workflow/poll.sh --state "$state" --map private/images.toml \
+  --policy data/github-actions.toml
 ```
 
+Omit `--policy` to use GitHub's default indicator and a matching map. `uv run` supplies the environment with `mysign`
+on `PATH`. With an activated environment, run the executable scripts directly instead.
+`--mysign` optionally selects a different executable, useful for scheduler configuration and offline checks.
+The script publishes a complete `pending.png` by atomic rename only when bytes change.
+Fetch or selection failure preserves the previous image and returns failure.
+
+The retained image is the last known desired state, even after failed polls. It may be stale; inspect polling errors and
+the source before manually sending it. There is no age gate, automatic upload, or healthy fallback.
 The image artifacts and publication rules are defined in [workflow state](docs/architecture.md#workflow-state).
 
 ### Upload the pending image
 
-Once `pending.png` exists, this Bash workflow is usable with the current sender.
-Run from the project directory with `MYSIGN_DEVICE` set. Run at most one uploader for a device at a time.
+Once `pending.png` exists, run the uploader in the foreground with `MYSIGN_DEVICE` set:
 
 ```bash
-set -euo pipefail
-state="${XDG_STATE_HOME:-$HOME/.local/state}/pwn-my-sign/github"
-snapshot="$(mktemp "$state/.upload.XXXXXX")"
-trap 'rm -f "$snapshot"' EXIT
-cp "$state/pending.png" "$snapshot"
-
-if cmp -s "$snapshot" "$state/last-sent.png"; then
-  printf '%s\n' 'The latest desired image has already been sent.' >&2
-  exit 0
-fi
-
-uv run mysign device send --device "$MYSIGN_DEVICE" --image "$snapshot"
-mv "$snapshot" "$state/last-sent.png"
+uv run scripts/workflow/upload.sh --state "$state" --device "$MYSIGN_DEVICE"
 ```
 
+The uploader snapshots pending, skips an already-sent image, and asks the sender to validate that snapshot before its
+button prompt and Bluetooth scan. Only successful transfer calls advance `last-sent.png` to the snapshot.
+A newer pending image published during the transfer remains available for the next upload.
 The snapshot follows the [workflow state contract](docs/architecture.md#workflow-state).
 
-### Schedule polling — WIP
+### Watch in a terminal
 
-Documented scheduler recipes will invoke the one-shot poll workflow with absolute paths and explicit environment variables:
+Use the name or UUID from [device discovery](#find-the-device-name-or-uuid) for `MYSIGN_DEVICE`.
+For a simple foreground alternative to installing a scheduled job, leave this running in a terminal:
 
-- Linux: a systemd oneshot service and timer, or cron with an overlap lock.
-- macOS: a user launchd job; cron is another Unix option.
+```bash
+uv run scripts/workflow/watch.sh --state "$state" --map private/images.toml \
+  --policy data/github-actions.toml --device "$MYSIGN_DEVICE" \
+  --interval 300
+```
 
-Scheduling must not start overlapping pollers. Upload remains a separate foreground action while physical wake is required.
-Installing jobs, starting background processes, and posting desktop notifications are future opt-in setup steps.
+The loop polls immediately. When pending differs from last-sent, it writes a terminal bell and offers Enter to upload.
+Press Enter, then press the sign's button when the uploader prompts. Upload validation and transfer use the existing
+one-shot uploader. It sends a snapshot; updates published during transfer remain pending for the next run.
+
+If you leave the prompt alone, it polls again after the interval and reminds you while an update remains unsent.
+After an upload, an already-sent result, or an error, it waits the interval before polling again.
+The default interval is 300 seconds; supply a positive whole number. Failed polls preserve pending and show an error,
+without offering the retained image for upload that iteration. Ctrl-C stops the loop; EOF at the reminder prompt ends it.
+Bell sound, visual flashing, and background-tab badges depend on your terminal's bell settings.
+This loop installs no service or notification helper. Keep this terminal's stdin attached so it can receive Enter.
+
+### Locks and recovery
+
+Each script creates a separate lock directory (`poll.lock`, `upload.lock`, or `watch.lock`) in the selected state directory.
+An overlapping invocation fails; polling can continue while an upload is in progress.
+Use one state directory per device: separate directories cannot prevent simultaneous transfers to the same sign.
+Normal exit and handled interruption remove temporary files and the script's lock.
+
+A crash or forced kill can leave a lock behind. Read its `pid` file, confirm that the process and any transfer child have
+stopped, then remove that lock's `pid` file and empty directory. Do not remove a lock belonging to an active process.
+An orphaned `.pending.*` or `.upload.*` temporary file may be removed after confirming no workflow is using it.
+
+### Schedule polling
+
+The [scheduler recipes](docs/workflow-scheduling.md) cover systemd, cron, and launchd with absolute executable paths.
+They schedule only polling; upload remains a foreground action while physical wake is required.
+No command installs jobs or starts a scheduler automatically.
 
 ### Desktop reminders — WIP
 
@@ -239,6 +261,8 @@ uv run poe check-all
 ```
 
 Available tasks, entrypoints, and dependencies are defined in [pyproject.toml](pyproject.toml).
+`check-all` includes offline shell workflow checks with fake commands, separate from the subprocess-free Python tests.
+Run those alone with `uv run poe workflow-test`; they do not contact GitHub or Bluetooth.
 See [the contributor guidelines](AGENTS.md) for required checks, coding conventions, and test rules.
 Install commit hooks with `uv run pre-commit install`.
 
