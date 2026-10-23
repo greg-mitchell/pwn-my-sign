@@ -139,9 +139,10 @@ def test_image_test_card_when_builder_fails_returns_failure(tmp_path: Path) -> N
 @pytest.mark.parametrize(
     ("arguments", "commands"),
     (
-        (["--help"], ("device", "image")),
+        (["--help"], ("device", "github", "image")),
         (["device", "--help"], ("scan", "send")),
         (["image", "--help"], ("test-card",)),
+        (["github", "--help"], ("status",)),
     ),
 )
 def test_mysign_when_group_help_is_requested_returns_available_commands(

@@ -1,0 +1,10 @@
+mode = "services"
+# br0l2tvcx85d is GitHub Actions: https://www.githubstatus.com/api
+priority_service_ids = ["br0l2tvcx85d"]
+outage_threshold = 2
+
+[codes]
+healthy = "ok"
+degraded = "degraded"
+priority_outage = "actions-outage"
+widespread_outage = "widespread-outage"

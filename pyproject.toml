@@ -10,7 +10,7 @@ readme = "README.md"
 license = "MIT"
 license-files = ["LICENSE.txt"]
 requires-python = ">=3.13.6"
-dependencies = ["bleak==3.0.1", "pillow>=11,<13", "click>=8,<9"]
+dependencies = ["bleak==3.0.1", "pillow>=11,<13", "click>=8,<9", "pydantic>=2,<3"]
 
 [project.scripts]
 mysign = "greg_mitchell.pwn_my_sign.cli.mysign:main"

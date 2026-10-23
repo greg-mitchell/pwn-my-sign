@@ -6,8 +6,8 @@ I built this to show service health from a cron job, motivated by recent frequen
 This is an independent, unofficial interoperability project. It is not affiliated with or endorsed by Dory AS.
 Use it with signs you own or are authorized to manage. Product names identify compatibility.
 
-**Working:** discovery and full-screen image uploads from macOS over Bluetooth LE.
-**WIP:** GitHub status fetching, image selection, change detection workflows, and desktop prompts.
+**Working:** GitHub status codes, discovery, and full-screen image uploads from macOS over Bluetooth LE.
+**WIP:** image selection, change detection workflows, and desktop prompts.
 The sign currently needs a physical button press for each upload.
 
 ## Setup
@@ -70,7 +70,7 @@ These are the intended interfaces. Only the rows marked **working** are installe
 
 | Command | Input | Output | Status |
 | --- | --- | --- | --- |
-| `mysign github status` | GitHub's status endpoint | One status code on stdout | WIP |
+| `mysign github status` | GitHub's summary endpoint or saved JSON | One status code on stdout | Working |
 | `mysign image match --map images.toml` | One code on stdin | Selected PNG bytes on stdout | WIP |
 | `mysign image make` | Text and appearance options | PNG | WIP |
 | `mysign device send` | `--image FILE` or `--frame FILE` | Diagnostics on stderr, exit status | Working |
@@ -83,28 +83,39 @@ See [architecture](docs/architecture.md) for command boundaries, stream contract
 
 ### Inspect the source now
 
-[GitHub Status](https://www.githubstatus.com/api) exposes
-`https://www.githubstatus.com/api/v2/status.json`. Its overall indicator is `none`, `minor`, `major`, or `critical`.
-This is GitHub's rollup; unresolved incidents can exist while the rollup is `none`.
-The summary endpoint is available later for component and incident details.
-
-Run this Bash snippet to fetch and validate a code:
-
-```bash
-set -euo pipefail
-# Fail on HTTP errors, keep errors visible, and bound the request to 15 seconds.
-curl --fail --silent --show-error --max-time 15 \
-  https://www.githubstatus.com/api/v2/status.json |
-  jq -er '.status.indicator | select(. == "none" or . == "minor" or . == "major" or . == "critical")'
+```sh
+uv run mysign github status
+uv run mysign github status --policy data/github-actions.toml
+uv run mysign github status --input tests/fixtures/github/healthy.json
 ```
 
-`mysign github status` will package that domain-specific operation. Fetch failures and unknown codes must fail rather than
-silently selecting the healthy image.
+The default prints [GitHub's indicator](https://www.githubstatus.com/api):
+
+| Code | Meaning |
+| --- | --- |
+| `none` | No reported impact. |
+| `minor` | Minor impact. |
+| `major` | Major impact. |
+| `critical` | Critical impact. |
+
+The [supplied policy](data/github-actions.toml) prioritizes GitHub Actions and uses these outputs.
+Service policies explicitly set their mode, priority services, outage threshold, and every output code:
+
+| Code | Meaning |
+| --- | --- |
+| `ok` | Services are healthy, with no unresolved incident or active maintenance. |
+| `degraded` | Some impairment, incident, or maintenance without an outage below. |
+| `actions-outage` | Actions is the only service reporting an outage. |
+| `widespread-outage` | Multiple visible services report outages. |
+
+See the [policy settings](src/greg_mitchell/pwn_my_sign/github/policy.py),
+[classification policy](src/greg_mitchell/pwn_my_sign/github/interpretation.py), and
+[offline examples](tests/fixtures/README.md#github-summary-examples) for details.
 
 ### Prepare only changed images — WIP
 
 First build one static PNG per code. A mapping file will select an asset without rendering it on every poll.
-The following describes the target workflow; `mysign github status` and `mysign image match` are not implemented yet.
+The following describes the target workflow; `mysign image match` is not implemented yet.
 
 ```bash
 set -euo pipefail

@@ -1,0 +1,9 @@
+{
+  "status": {"indicator": "critical"},
+  "components": [
+    {"id": "br0l2tvcx85d", "name": "Actions", "status": "major_outage", "showcase": true, "group": false},
+    {"id": "example-api", "name": "API", "status": "degraded_performance", "showcase": true, "group": false}
+  ],
+  "incidents": [],
+  "scheduled_maintenances": []
+}

@@ -22,8 +22,8 @@ Keep later prototypes local rather than creating an unnecessary PR stack.
 
 | Unit | Scope | State | Dependency |
 | --- | --- | --- | --- |
-| 1. Click domain groups | Install `mysign` with `device` and `image` groups, extract domain operations, preserve leaf behavior. | In review | Existing sender |
-| 2. GitHub source | Add `mysign github status`, validated summary data, rollup/team views, and offline inputs. | Queued | CLI convention |
+| 1. Click domain groups | Install `mysign` with `device` and `image` groups, extract domain operations, preserve leaf behavior. | Complete | Existing sender |
+| 2. GitHub source | Add `mysign github status`, validated summary data, explicit service policies, and offline inputs. | In review | CLI convention |
 | 3. Image selection and piping | Add `mysign image match`, then PNG stdin support for the sender in a separate feature commit. | Queued | CLI convention |
 | 4. Card building | Add `mysign image make` with explicit artwork/font inputs and a consistent image/text layout. | Queued | CLI convention |
 | 5. Workflow integration | Runnable shell examples, state comparisons, upload snapshots, locks, and scheduler docs. | Queued | Source, selection, sender |
@@ -32,11 +32,14 @@ Keep later prototypes local rather than creating an unnecessary PR stack.
 
 - Fetch GitHub's summary with a positive finite socket timeout, a response-size limit, and no automatic retries.
   A socket timeout is not a hard deadline for the entire command.
-- Default rollup output remains `none`, `minor`, `major`, or `critical`.
-- The team view distinguishes healthy, degraded, Actions outage, and widespread outage.
-  Reserve widespread outage for outage reports across multiple visible services; a critical rollup alone is insufficient.
-  An Actions-only partial or major outage selects the Actions card, even with a critical rollup.
-  Other degradation, maintenance, or unresolved incidents select a degraded card.
+- Default output remains GitHub's indicator: `none`, `minor`, `major`, or `critical`.
+- An explicit TOML service policy requires priority services, outage count threshold, and all output tokens.
+  The [static Actions policy](../data/github-actions.toml) names GitHub Actions and reserves widespread outage
+  for reports across multiple visible services;
+  a critical rollup alone is insufficient. An Actions-only partial or major outage selects its priority code,
+  even with a critical rollup. Other degradation, maintenance, or unresolved incidents select a degraded code.
+  Policy files require an explicit mode and fail before fetching when invalid; indicator policies reject service settings.
+  No policy file is loaded implicitly, and no service-specific defaults live in Python.
 - Reject unknown or incomplete source data; never infer healthy from a failed fetch or malformed response.
 - Select an exact token from stdin using a TOML map. Resolve asset paths relative to that map and emit the original PNG bytes.
   Read and validate the complete selected image before writing stdout; lookup or read failure produces no image.

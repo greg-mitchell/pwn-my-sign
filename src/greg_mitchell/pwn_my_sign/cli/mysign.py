@@ -1,6 +1,7 @@
 import click
 
 from greg_mitchell.pwn_my_sign.cli.device import device
+from greg_mitchell.pwn_my_sign.cli.github import github
 from greg_mitchell.pwn_my_sign.cli.image import image
 
 
@@ -10,4 +11,5 @@ def main() -> None:
 
 
 main.add_command(device)
+main.add_command(github)
 main.add_command(image)
