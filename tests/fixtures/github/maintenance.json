@@ -1,0 +1,8 @@
+{
+  "status": {"indicator": "none"},
+  "components": [
+    {"id": "br0l2tvcx85d", "name": "Actions", "status": "operational", "showcase": true, "group": false}
+  ],
+  "incidents": [],
+  "scheduled_maintenances": [{"id": "example-maintenance", "status": "in_progress"}]
+}

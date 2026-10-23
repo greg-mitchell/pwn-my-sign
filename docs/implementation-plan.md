@@ -22,8 +22,8 @@ Keep later prototypes local rather than creating an unnecessary PR stack.
 
 | Unit | Scope | State | Dependency |
 | --- | --- | --- | --- |
-| 1. Click domain groups | Install `mysign` with `device` and `image` groups, extract domain operations, preserve leaf behavior. | In review | Existing sender |
-| 2. GitHub source | Add `mysign github status`, validated summary data, rollup/team views, and offline inputs. | Queued | CLI convention |
+| 1. Click domain groups | Install `mysign` with `device` and `image` groups, extract domain operations, preserve leaf behavior. | Complete | Existing sender |
+| 2. GitHub source | Add `mysign github status`, validated summary data, rollup/team views, and offline inputs. | In review | CLI convention |
 | 3. Image selection and piping | Add `mysign image match`, then PNG stdin support for the sender in a separate feature commit. | Queued | CLI convention |
 | 4. Card building | Add `mysign image make` with explicit artwork/font inputs and a consistent image/text layout. | Queued | CLI convention |
 | 5. Workflow integration | Runnable shell examples, state comparisons, upload snapshots, locks, and scheduler docs. | Queued | Source, selection, sender |

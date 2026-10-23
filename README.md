@@ -6,8 +6,8 @@ I built this to show service health from a cron job, motivated by recent frequen
 This is an independent, unofficial interoperability project. It is not affiliated with or endorsed by Dory AS.
 Use it with signs you own or are authorized to manage. Product names identify compatibility.
 
-**Working:** discovery and full-screen image uploads from macOS over Bluetooth LE.
-**WIP:** GitHub status fetching, image selection, change detection workflows, and desktop prompts.
+**Working:** GitHub status codes, discovery, and full-screen image uploads from macOS over Bluetooth LE.
+**WIP:** image selection, change detection workflows, and desktop prompts.
 The sign currently needs a physical button press for each upload.
 
 ## Setup
@@ -70,7 +70,7 @@ These are the intended interfaces. Only the rows marked **working** are installe
 
 | Command | Input | Output | Status |
 | --- | --- | --- | --- |
-| `mysign github status` | GitHub's status endpoint | One status code on stdout | WIP |
+| `mysign github status` | GitHub's summary endpoint or saved JSON | One status code on stdout | Working |
 | `mysign image match --map images.toml` | One code on stdin | Selected PNG bytes on stdout | WIP |
 | `mysign image make` | Text and appearance options | PNG | WIP |
 | `mysign device send` | `--image FILE` or `--frame FILE` | Diagnostics on stderr, exit status | Working |
@@ -84,27 +84,53 @@ See [architecture](docs/architecture.md) for command boundaries, stream contract
 ### Inspect the source now
 
 [GitHub Status](https://www.githubstatus.com/api) exposes
-`https://www.githubstatus.com/api/v2/status.json`. Its overall indicator is `none`, `minor`, `major`, or `critical`.
-This is GitHub's rollup; unresolved incidents can exist while the rollup is `none`.
-The summary endpoint is available later for component and incident details.
+`https://www.githubstatus.com/api/v2/summary.json`, including rollup, components, incidents, and scheduled maintenance.
 
-Run this Bash snippet to fetch and validate a code:
-
-```bash
-set -euo pipefail
-# Fail on HTTP errors, keep errors visible, and bound the request to 15 seconds.
-curl --fail --silent --show-error --max-time 15 \
-  https://www.githubstatus.com/api/v2/status.json |
-  jq -er '.status.indicator | select(. == "none" or . == "minor" or . == "major" or . == "critical")'
+```sh
+uv run mysign github status
+uv run mysign github status --view team --timeout 10
 ```
 
-`mysign github status` will package that domain-specific operation. Fetch failures and unknown codes must fail rather than
-silently selecting the healthy image.
+The default `--view rollup` prints GitHub's indicator: `none`, `minor`, `major`, or `critical`.
+Unresolved incidents can exist while the rollup is `none`. The `--view team` policy is:
+
+| Code | Meaning |
+| --- | --- |
+| `ok` | All visible leaf services operational, rollup `none`, no unresolved incident or active maintenance. |
+| `degraded` | Other impairment, non-`none` rollup, unresolved incident, or active maintenance. |
+| `actions-outage` | Actions alone reports a partial or major outage; unrelated degradation does not change this code. |
+| `widespread-outage` | At least two visible leaf services report partial or major outages, including or excluding Actions. |
+
+Outages take precedence over degradation. A critical rollup alone does not imply a widespread outage.
+Hidden components (`showcase: false`) and groups (`group: true`) do not count as services.
+Scheduled maintenance degrades the team view only while `in_progress` or `verifying`; upcoming and completed work do not.
+
+Both views validate the complete relevant summary before emitting exactly one code and a newline.
+Unknown states, missing sections, duplicate component IDs, or missing Actions data fail with stderr and a nonzero exit,
+with no code on stdout. Actions is identified by its stable component ID `br0l2tvcx85d` and must be a visible leaf service.
+The four required sections are `status`, `components`, `incidents`, and `scheduled_maintenances`.
+Components require `id`, `status`, and explicit boolean `showcase` and `group` fields; older examples omitting those fields
+are rejected rather than guessing visibility. Incidents require `id`, known `status`, and known `impact`; maintenance
+requires `id` and known `status`. Unused API metadata is accepted and ignored.
+
+`--timeout` is a positive finite socket timeout (default 15 seconds), not a deadline for the whole command.
+The source makes one request without retries and limits summary input to 1 MiB, including offline input.
+Use `--input FILE` or `--input -` to validate saved summary JSON without fetching:
+
+```sh
+uv run mysign github status --view team --input tests/fixtures/github/actions-only.json
+# actions-outage
+cat tests/fixtures/github/healthy.json | uv run mysign github status --view team --input -
+# ok
+```
+
+The [synthetic summary examples](tests/fixtures/github/) also cover unrelated and simultaneous outages, multiple
+non-Actions outages, and active maintenance. They contain no device data or captured API responses.
 
 ### Prepare only changed images — WIP
 
 First build one static PNG per code. A mapping file will select an asset without rendering it on every poll.
-The following describes the target workflow; `mysign github status` and `mysign image match` are not implemented yet.
+The following describes the target workflow; `mysign image match` is not implemented yet.
 
 ```bash
 set -euo pipefail
