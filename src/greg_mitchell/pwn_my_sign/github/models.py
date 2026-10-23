@@ -3,8 +3,6 @@ from typing import Self
 
 from pydantic import BaseModel, ConfigDict, Field, StrictBool, model_validator
 
-ACTIONS_ID = "br0l2tvcx85d"
-
 
 class Rollup(StrEnum):
     NONE = "none"
@@ -67,24 +65,19 @@ class Maintenance(BaseModel):
 
 
 class Summary(BaseModel):
-    """Require the metadata needed to safely interpret either status view."""
+    """Require provider data independently of any configured classification policy."""
 
     model_config = ConfigDict(frozen=True)
 
     status: Status
-    components: tuple[Component, ...]
+    components: tuple[Component, ...] = Field(min_length=1)
     incidents: tuple[Incident, ...]
     scheduled_maintenances: tuple[Maintenance, ...]
 
     @model_validator(mode="after")
     def validate_component_ids(self) -> Self:
-        """Reject ambiguous services and summaries missing the known Actions service."""
+        """Reject ambiguous service identities."""
         ids = tuple(component.id for component in self.components)
         if len(ids) != len(frozenset(ids)):
             raise ValueError("Component IDs must be unique.")
-        if ids.count(ACTIONS_ID) != 1:
-            raise ValueError("Summary must contain exactly one GitHub Actions component.")
-        actions = next(component for component in self.components if component.id == ACTIONS_ID)
-        if not actions.showcase or actions.group:
-            raise ValueError("GitHub Actions must be a visible leaf service.")
         return self

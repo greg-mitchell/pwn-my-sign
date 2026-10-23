@@ -4,7 +4,8 @@ from typing import BinaryIO
 
 import click
 
-from greg_mitchell.pwn_my_sign.github.interpretation import team_status
+from greg_mitchell.pwn_my_sign.github.interpretation import status_code
+from greg_mitchell.pwn_my_sign.github.policy import StatusPolicy, read_policy
 from greg_mitchell.pwn_my_sign.github.source import GitHubSource
 
 
@@ -15,7 +16,7 @@ def _finite_timeout(context: click.Context, parameter: click.Parameter, value: f
 
 
 @click.command()
-@click.option("--view", type=click.Choice(("rollup", "team")), default="rollup", show_default=True)
+@click.option("--policy", type=click.File("rb"), help="Explicit TOML policy; defaults to GitHub's indicator.")
 @click.option(
     "--timeout",
     type=click.FloatRange(min=0, min_open=True),
@@ -28,11 +29,13 @@ def _finite_timeout(context: click.Context, parameter: click.Parameter, value: f
     "--input", "source", type=click.File("rb"), help="Saved summary JSON file, or - for stdin; skips fetching."
 )
 @click.pass_obj
-def status(operations: GitHubSource | None, view: str, timeout: float, source: BinaryIO | None) -> None:
+def status(operations: GitHubSource | None, policy: BinaryIO | None, timeout: float, source: BinaryIO | None) -> None:
     """Print one validated status code; errors produce no code."""
     operations = operations or GitHubSource()
     try:
+        settings = read_policy(policy) if policy is not None else StatusPolicy()
         summary = operations.read(source) if source is not None else operations.fetch(timeout)
+        code = status_code(summary, settings)
     except (OSError, HTTPException, ValueError) as error:
         raise click.ClickException(f"Cannot read GitHub status: {error}") from error
-    click.echo(summary.status.indicator if view == "rollup" else team_status(summary))
+    click.echo(code)

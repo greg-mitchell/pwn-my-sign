@@ -83,49 +83,34 @@ See [architecture](docs/architecture.md) for command boundaries, stream contract
 
 ### Inspect the source now
 
-[GitHub Status](https://www.githubstatus.com/api) exposes
-`https://www.githubstatus.com/api/v2/summary.json`, including rollup, components, incidents, and scheduled maintenance.
-
 ```sh
 uv run mysign github status
-uv run mysign github status --view team --timeout 10
+uv run mysign github status --policy tests/fixtures/github/default-services.toml
+uv run mysign github status --input tests/fixtures/github/healthy.json
 ```
 
-The default `--view rollup` prints GitHub's indicator: `none`, `minor`, `major`, or `critical`.
-Unresolved incidents can exist while the rollup is `none`. The `--view team` policy is:
+The default prints [GitHub's indicator](https://www.githubstatus.com/api):
 
 | Code | Meaning |
 | --- | --- |
-| `ok` | All visible leaf services operational, rollup `none`, no unresolved incident or active maintenance. |
-| `degraded` | Other impairment, non-`none` rollup, unresolved incident, or active maintenance. |
-| `actions-outage` | Actions alone reports a partial or major outage; unrelated degradation does not change this code. |
-| `widespread-outage` | At least two visible leaf services report partial or major outages, including or excluding Actions. |
+| `none` | No reported impact. |
+| `minor` | Minor impact. |
+| `major` | Major impact. |
+| `critical` | Critical impact. |
 
-Outages take precedence over degradation. A critical rollup alone does not imply a widespread outage.
-Hidden components (`showcase: false`) and groups (`group: true`) do not count as services.
-Scheduled maintenance degrades the team view only while `in_progress` or `verifying`; upcoming and completed work do not.
+An explicit TOML policy can select this project's configurable service classification with `mode = "services"`.
+Policy files otherwise default to GitHub's indicator. The supplied example uses these outputs:
 
-Both views validate the complete relevant summary before emitting exactly one code and a newline.
-Unknown states, missing sections, duplicate component IDs, or missing Actions data fail with stderr and a nonzero exit,
-with no code on stdout. Actions is identified by its stable component ID `br0l2tvcx85d` and must be a visible leaf service.
-The four required sections are `status`, `components`, `incidents`, and `scheduled_maintenances`.
-Components require `id`, `status`, and explicit boolean `showcase` and `group` fields; older examples omitting those fields
-are rejected rather than guessing visibility. Incidents require `id`, known `status`, and known `impact`; maintenance
-requires `id` and known `status`. Unused API metadata is accepted and ignored.
+| Code | Meaning |
+| --- | --- |
+| `ok` | Services are healthy, with no unresolved incident or active maintenance. |
+| `degraded` | Some impairment, incident, or maintenance without an outage below. |
+| `actions-outage` | Actions is the only service reporting an outage. |
+| `widespread-outage` | Multiple visible services report outages. |
 
-`--timeout` is a positive finite socket timeout (default 15 seconds), not a deadline for the whole command.
-The source makes one request without retries and limits summary input to 1 MiB, including offline input.
-Use `--input FILE` or `--input -` to validate saved summary JSON without fetching:
-
-```sh
-uv run mysign github status --view team --input tests/fixtures/github/actions-only.json
-# actions-outage
-cat tests/fixtures/github/healthy.json | uv run mysign github status --view team --input -
-# ok
-```
-
-The [synthetic summary examples](tests/fixtures/github/) also cover unrelated and simultaneous outages, multiple
-non-Actions outages, and active maintenance. They contain no device data or captured API responses.
+See the [policy settings](src/greg_mitchell/pwn_my_sign/github/policy.py),
+[classification policy](src/greg_mitchell/pwn_my_sign/github/interpretation.py), and
+[offline examples](tests/fixtures/README.md#github-summary-examples) for details.
 
 ### Prepare only changed images — WIP
 

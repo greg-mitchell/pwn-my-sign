@@ -8,7 +8,7 @@ import pytest
 from click.testing import CliRunner
 
 from greg_mitchell.pwn_my_sign.cli.mysign import main as mysign
-from greg_mitchell.pwn_my_sign.github.models import Rollup, Status, Summary
+from greg_mitchell.pwn_my_sign.github.models import ComponentStatus, Rollup, Status, Summary
 from greg_mitchell.pwn_my_sign.github.source import MAX_SUMMARY_BYTES, GitHubSource, SummaryOpener
 
 
@@ -26,7 +26,7 @@ def operations(document: bytes) -> Mock:
 
 
 @pytest.mark.parametrize("rollup", tuple(Rollup))
-def test_github_status_when_default_view_is_requested_returns_rollup_code(operations: Mock, rollup: Rollup) -> None:
+def test_github_status_when_no_policy_is_supplied_returns_provider_indicator(operations: Mock, rollup: Rollup) -> None:
     operations.fetch.return_value = operations.fetch.return_value.model_copy(
         update={"status": Status(indicator=rollup)}
     )
@@ -36,8 +36,13 @@ def test_github_status_when_default_view_is_requested_returns_rollup_code(operat
     assert result.stdout == f"{rollup}\n"
 
 
-def test_github_status_when_team_view_is_requested_returns_team_code(operations: Mock) -> None:
-    result = CliRunner().invoke(mysign, ["github", "status", "--view", "team"], obj=operations, catch_exceptions=False)
+def test_github_status_when_service_policy_is_supplied_returns_policy_code(operations: Mock) -> None:
+    result = CliRunner().invoke(
+        mysign,
+        ["github", "status", "--policy", "tests/fixtures/github/default-services.toml"],
+        obj=operations,
+        catch_exceptions=False,
+    )
 
     assert result.stdout == "ok\n"
 
@@ -86,7 +91,7 @@ def test_github_status_when_stdin_is_selected_calls_reader_with_input_stream(ope
 @pytest.mark.parametrize(
     "arguments",
     (
-        ["--view", "unknown"],
+        ["--unknown"],
         ["--timeout", "0"],
         ["--timeout", "-1"],
         ["--timeout", "nan"],
@@ -143,17 +148,21 @@ def test_github_status_when_source_fails_returns_error_on_stderr(operations: Moc
     assert result.stderr == "Error: Cannot read GitHub status: read failed\n"
 
 
-@pytest.mark.parametrize("view", ("rollup", "team"))
+@pytest.mark.parametrize(
+    "policy_arguments", ((), ("--policy", "tests/fixtures/github/default-services.toml")), ids=("indicator", "services")
+)
 @pytest.mark.parametrize(
     "document",
     (b"not json", b'{"status":{"indicator":"none"}}', b" " * (MAX_SUMMARY_BYTES + 1)),
     ids=("malformed", "incomplete", "oversize"),
 )
-def test_github_status_when_offline_summary_is_invalid_returns_no_code(view: str, document: bytes) -> None:
+def test_github_status_when_offline_summary_is_invalid_returns_no_code(
+    policy_arguments: tuple[str, ...], document: bytes
+) -> None:
     source = GitHubSource(Mock(spec=SummaryOpener))
 
     result = CliRunner().invoke(
-        mysign, ["github", "status", "--view", view, "--input", "-"], obj=source, input=document
+        mysign, ["github", "status", *policy_arguments, "--input", "-"], obj=source, input=document
     )
 
     assert (result.exit_code, result.stdout) == (1, "")
@@ -185,14 +194,125 @@ def test_github_status_when_fetch_is_incomplete_returns_no_code() -> None:
         ("maintenance", "degraded"),
     ),
 )
-def test_github_status_when_synthetic_example_is_selected_returns_team_code(name: str, expected: str) -> None:
+def test_github_status_when_synthetic_example_is_selected_returns_policy_code(name: str, expected: str) -> None:
     source = GitHubSource(Mock(spec=SummaryOpener))
 
     result = CliRunner().invoke(
         mysign,
-        ["github", "status", "--view", "team", "--input", f"tests/fixtures/github/{name}.json"],
+        [
+            "github",
+            "status",
+            "--policy",
+            "tests/fixtures/github/default-services.toml",
+            "--input",
+            f"tests/fixtures/github/{name}.json",
+        ],
         obj=source,
         catch_exceptions=False,
     )
+
+    assert result.stdout == f"{expected}\n"
+
+
+@pytest.mark.parametrize(
+    "config",
+    (
+        'mode = "services"\n[codes]\nhealthy = "ready"\n',
+        'mode = "indicator"\n',
+        '[codes]\nhealthy = "ready"\n',
+    ),
+    ids=("services", "explicit-indicator", "default-indicator"),
+)
+def test_github_status_when_policy_is_supplied_with_stdin_returns_configured_code(
+    document: bytes, tmp_path: Path, config: str
+) -> None:
+    policy_file = tmp_path / "policy.toml"
+    policy_file.write_text(config)
+    source = GitHubSource(Mock(spec=SummaryOpener))
+
+    result = CliRunner().invoke(
+        mysign, ["github", "status", "--policy", str(policy_file), "--input", "-"], obj=source, input=document
+    )
+
+    assert result.stdout == ("ready\n" if 'mode = "services"' in config else "none\n")
+
+
+@pytest.mark.parametrize(
+    "config", (b"not toml", b"\xff", b'mode = "unknown"', b"outage_threshold = 0", b"unknown = true")
+)
+def test_github_status_when_policy_is_invalid_returns_no_code(operations: Mock, tmp_path: Path, config: bytes) -> None:
+    policy_file = tmp_path / "policy.toml"
+    policy_file.write_bytes(config)
+
+    result = CliRunner().invoke(mysign, ["github", "status", "--policy", str(policy_file)], obj=operations)
+
+    assert (result.exit_code, result.stdout) == (1, "")
+
+
+@pytest.mark.parametrize("config", (b"not toml", b'mode = "unknown"', b"outage_threshold = 0"))
+def test_github_status_when_policy_is_invalid_calls_no_source(operations: Mock, tmp_path: Path, config: bytes) -> None:
+    policy_file = tmp_path / "policy.toml"
+    policy_file.write_bytes(config)
+
+    CliRunner().invoke(mysign, ["github", "status", "--policy", str(policy_file)], obj=operations)
+
+    assert operations.mock_calls == []
+
+
+def test_github_status_when_policy_file_is_missing_calls_no_source(operations: Mock, tmp_path: Path) -> None:
+    CliRunner().invoke(mysign, ["github", "status", "--policy", str(tmp_path / "missing.toml")], obj=operations)
+
+    assert operations.mock_calls == []
+
+
+def test_github_status_when_policy_file_is_missing_returns_no_code(operations: Mock, tmp_path: Path) -> None:
+    result = CliRunner().invoke(
+        mysign, ["github", "status", "--policy", str(tmp_path / "missing.toml")], obj=operations
+    )
+
+    assert (result.exit_code, result.stdout) == (2, "")
+
+
+def test_github_status_when_priority_service_is_missing_returns_no_code(document: bytes, tmp_path: Path) -> None:
+    policy_file = tmp_path / "policy.toml"
+    policy_file.write_text('mode = "services"\npriority_service_ids = ["absent"]\n')
+    source = GitHubSource(Mock(spec=SummaryOpener))
+
+    result = CliRunner().invoke(
+        mysign, ["github", "status", "--policy", str(policy_file), "--input", "-"], obj=source, input=document
+    )
+
+    assert (result.exit_code, result.stdout) == (1, "")
+
+
+@pytest.mark.parametrize(
+    ("config", "outage_index", "expected"),
+    (
+        (
+            'mode = "services"\npriority_service_ids = ["example-api"]\n[codes]\npriority_outage = "api-down"\n',
+            1,
+            "api-down",
+        ),
+        ('mode = "services"\noutage_threshold = 1\n[codes]\nwidespread_outage = "many-down"\n', 0, "many-down"),
+        ('mode = "services"\n[codes]\nhealthy = "ready"\n', None, "ready"),
+    ),
+    ids=("custom-priority", "custom-threshold", "custom-code"),
+)
+def test_github_status_when_supplied_policy_changes_classification_returns_configured_code(
+    operations: Mock, tmp_path: Path, config: str, outage_index: int | None, expected: str
+) -> None:
+    policy_file = tmp_path / "policy.toml"
+    policy_file.write_text(config)
+    summary = operations.fetch.return_value
+    if outage_index is not None:
+        components = tuple(
+            component.model_copy(update={"status": ComponentStatus.MAJOR_OUTAGE})
+            if index == outage_index
+            else component
+            for index, component in enumerate(summary.components)
+        )
+        operations.fetch.return_value = summary.model_copy(update={"components": components})
+
+    result = CliRunner().invoke(mysign, ["github", "status", "--policy", str(policy_file)], obj=operations)
 
     assert result.stdout == f"{expected}\n"

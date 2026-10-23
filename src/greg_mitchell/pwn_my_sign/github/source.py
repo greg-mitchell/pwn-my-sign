@@ -23,7 +23,7 @@ class GitHubSource:
         """Fetch once with a positive finite socket timeout; close the response on all paths."""
         if not math.isfinite(timeout) or timeout <= 0:
             raise ValueError("Timeout must be positive and finite.")
-        request = Request(SUMMARY_URL, headers={"Accept": "application/json", "User-Agent": "pwn-my-sign/0.1"})
+        request = Request(SUMMARY_URL, headers={"Accept": "application/json"})
         with self._opener(request, timeout=timeout) as response:
             return self.read(response)
 

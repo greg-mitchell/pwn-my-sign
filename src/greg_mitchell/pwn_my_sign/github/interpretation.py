@@ -1,34 +1,33 @@
-from enum import StrEnum
-
 from greg_mitchell.pwn_my_sign.github.models import (
-    ACTIONS_ID,
     ComponentStatus,
     IncidentStatus,
     MaintenanceStatus,
     Rollup,
     Summary,
 )
+from greg_mitchell.pwn_my_sign.github.policy import PolicyMode, StatusPolicy
 
 
-class TeamStatus(StrEnum):
-    OK = "ok"
-    DEGRADED = "degraded"
-    ACTIONS_OUTAGE = "actions-outage"
-    WIDESPREAD_OUTAGE = "widespread-outage"
-
-
-def team_status(summary: Summary) -> TeamStatus:
-    """Classify visible leaf services, retaining incident and maintenance signals."""
+def status_code(summary: Summary, policy: StatusPolicy) -> str:
+    """Return the provider indicator or apply the explicitly selected service policy."""
+    if policy.mode == PolicyMode.INDICATOR:
+        return summary.status.indicator
     services = tuple(component for component in summary.components if component.showcase and not component.group)
+    if not services:
+        raise ValueError("Service policy requires at least one visible leaf service.")
+    service_ids = frozenset(component.id for component in services)
+    missing = frozenset(policy.priority_service_ids) - service_ids
+    if missing:
+        raise ValueError(f"Priority services must exist as visible leaf services: {', '.join(sorted(missing))}.")
     outages = tuple(
         component
         for component in services
         if component.status in (ComponentStatus.PARTIAL_OUTAGE, ComponentStatus.MAJOR_OUTAGE)
     )
-    if len(outages) >= 2:
-        return TeamStatus.WIDESPREAD_OUTAGE
-    if any(component.id == ACTIONS_ID for component in outages):
-        return TeamStatus.ACTIONS_OUTAGE
+    if len(outages) >= policy.outage_threshold:
+        return policy.codes.widespread_outage
+    if any(component.id in policy.priority_service_ids for component in outages):
+        return policy.codes.priority_outage
     if (
         summary.status.indicator != Rollup.NONE
         or any(component.status != ComponentStatus.OPERATIONAL for component in services)
@@ -41,5 +40,5 @@ def team_status(summary: Summary) -> TeamStatus:
             for maintenance in summary.scheduled_maintenances
         )
     ):
-        return TeamStatus.DEGRADED
-    return TeamStatus.OK
+        return policy.codes.degraded
+    return policy.codes.healthy
