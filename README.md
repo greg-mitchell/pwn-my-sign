@@ -6,7 +6,7 @@ I built this to show service health from a cron job, motivated by recent frequen
 This is an independent, unofficial interoperability project. It is not affiliated with or endorsed by Dory AS.
 Use it with signs you own or are authorized to manage. Product names identify compatibility.
 
-**Working:** GitHub status codes, PNG selection, discovery, and full-screen image uploads from macOS over Bluetooth LE.
+**Working:** GitHub status codes, card building, PNG selection, discovery, and image uploads from macOS over Bluetooth LE.
 **WIP:** change detection workflows and desktop prompts.
 The sign currently needs a physical button press for each upload.
 
@@ -71,7 +71,24 @@ uv run mysign device send --device "$MYSIGN_DEVICE" --image private/mac-test.png
 Each card says **SENT FROM MAC**, with a fresh ID and timestamp, and includes a grayscale ramp and corner labels.
 The corner labels probe the image edges, where the frame can hide some pixels.
 The diagnostic currently defaults to a macOS Arial font; `--font` accepts a different TrueType font path.
-General image building and rendering from templates are WIP.
+Template rendering remains optional future work.
+
+## Build a static display card
+
+Supply your own artwork and TrueType or OpenType font. Keep these inputs and finished cards in ignored `private/`:
+
+```sh
+uv run mysign image make --artwork private/artwork.png --font private/font.ttf \
+  --title 'Service health' --status 'All systems operational' --caption 'Ready for work' \
+  --output private/cards/ok.png
+```
+
+Create the output directory first. Omit `--output` to emit PNG bytes on stdout.
+The deterministic 1280 × 720 grayscale layout contains the full artwork on the left and wraps the three text blocks
+on the right, with a 32-pixel inset. Title, status, and caption use fixed 56-, 40-, and 32-pixel fonts.
+Explicit line breaks are preserved; words or text blocks that do not fit fail rather than being clipped or shrunk.
+Transparent artwork is placed on white, photo orientation is honored, and animated artwork is rejected.
+Rendering completes before output is written, so invalid inputs preserve an existing output file.
 
 ## Composable tools
 
@@ -81,7 +98,7 @@ These are the intended interfaces. Only the rows marked **working** are installe
 | --- | --- | --- | --- |
 | `mysign github status` | GitHub's summary endpoint or saved JSON | One status code on stdout | Working |
 | `mysign image match --map images.toml` | One code on stdin | Selected PNG bytes on stdout | Working |
-| `mysign image make` | Text and appearance options | PNG | WIP |
+| `mysign image make` | Explicit artwork, font, title, status, and caption | PNG bytes or named file | Working |
 | `mysign device send` | `--image FILE` or `--frame FILE` | Diagnostics on stderr, exit status | Working |
 | `mysign device send --image -` | PNG on stdin | Diagnostics on stderr, exit status | Working |
 | `mysign image test-card` | Output/font options | Diagnostic PNG and ID metadata | Working |
