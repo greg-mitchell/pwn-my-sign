@@ -35,9 +35,11 @@ Python and testing conventions are defined in [the contributor guidelines](../AG
 
 - Sources emit one stable code and a newline on stdout. Unknown or incomplete data fails rather than implying health.
 - Selectors consume one exact code from stdin and emit the selected PNG's original bytes. Asset paths resolve relative
-  to the explicit mapping file. Lookup, read, or validation failures produce no image output.
+  to the explicit mapping file. Selected cards must be static 1280 x 720 PNGs. Lookup, read, or validation failures
+  produce no image output.
 - Renderers produce PNG bytes or write an explicitly named output file. Templates preserve that image interface.
-- The sender validates the complete input before prompting or scanning Bluetooth.
+- The sender validates the complete input before prompting or scanning Bluetooth. PNG stdin must be static and
+  1280 x 720; file inputs retain the image formats supported by the sender.
 - Data belongs on stdout; progress, prompts, and errors belong on stderr.
 - Nonzero exit indicates failure. Successful transfer calls do not establish physical display acknowledgement;
   see [the protocol's observed limits](protocol.md).
