@@ -27,7 +27,7 @@ The project follows the namespace package and development tooling used in
 ## Upload a custom image
 
 Prepare an image exactly **1280 × 720 pixels**. The sender converts it to grayscale and 16 levels without resizing or cropping.
-Keep important text and graphics at least **32 pixels** from each edge; backgrounds can fill the screen.
+For the observed sign, keep text at least **32 pixels** from each edge; artwork and backgrounds can fill the screen.
 
 Close the Dory app on your phone, then discover the sign:
 
@@ -86,12 +86,15 @@ uv run mysign image make --layout data/card-layout.toml --artwork private/artwor
 Create the output directory first. Omit `--output` to emit PNG bytes on stdout.
 The deterministic 1280 × 720 grayscale output uses an explicitly selected TOML layout template.
 The supplied [split layout](data/card-layout.toml) contains the full artwork on the left and wraps optional title, status,
-and caption on the right. It declares a 32-pixel safe margin and 56-, 40-, and 32-pixel fonts.
-Copy and edit it to choose box positions, sizes, typography, spacing, and safe margin; every setting is explicit.
-Layout boxes must stay inside the declared margin and must not overlap.
-The [artwork-only layout](data/artwork-layout.toml) uses the full safe area without a text region.
+and caption on the right. It uses 56-, 40-, and 32-pixel fonts and centers the complete text stack vertically beside the art.
+Copy and edit it to choose box positions, sizes, typography, spacing, and vertical alignment (`top`, `center`, or `bottom`).
+Layout boxes must stay inside the canvas and must not overlap. Text remains aligned left within its box.
+The [artwork-only layout](data/artwork-layout.toml) uses the full canvas without a text region.
+The split template places text 32 pixels from the edges, following the observed device's
+[calibration recommendation](docs/display-calibration.md#device-guidance); this is advisory and artwork may reach any edge.
 Omit any text options you do not need. Blank text takes no space; `--font` is required only when visible text is supplied.
 Explicit line breaks are preserved; words or text blocks that do not fit fail rather than being clipped or shrunk.
+Pillow handles pixel-width wrapping and multiline baselines; trailing invisible whitespace can be discarded.
 Transparent artwork is placed on white, photo orientation is honored, and animated artwork is rejected.
 Rendering completes before output is written, so invalid inputs preserve an existing output file.
 See [synthetic rendered examples](tests/fixtures/README.md#rendered-card-examples) for previews and regeneration instructions.

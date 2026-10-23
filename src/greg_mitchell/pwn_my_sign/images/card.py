@@ -1,11 +1,11 @@
 from io import BytesIO
 from pathlib import Path
 
-from PIL import Image, ImageDraw, ImageFont, ImageOps
+from PIL import Image, ImageDraw, ImageFont, ImageOps, ImageText
 from pydantic import BaseModel, ConfigDict
 
 from greg_mitchell.pwn_my_sign.frame_codec import HEIGHT, WIDTH
-from greg_mitchell.pwn_my_sign.images.layout import CardLayout
+from greg_mitchell.pwn_my_sign.images.layout import CardLayout, VerticalAlignment
 
 
 class CardSpec(BaseModel):
@@ -21,23 +21,8 @@ class CardSpec(BaseModel):
     caption: str = ""
 
 
-def _wrap(text: str, font: ImageFont.FreeTypeFont, width: int) -> tuple[str, ...]:
-    lines: list[str] = []
-    for paragraph in text.split("\n"):
-        line = ""
-        for word in paragraph.split():
-            left, _, right, _ = font.getbbox(word)
-            if right - left > width:
-                raise ValueError("A word is too wide for the text column.")
-            candidate = f"{line} {word}" if line else word
-            left, _, right, _ = font.getbbox(candidate)
-            if right - left > width:
-                lines.append(line)
-                line = word
-            else:
-                line = candidate
-        lines.append(line)
-    return tuple(lines)
+def _alignment_fraction(alignment: VerticalAlignment) -> float:
+    return {VerticalAlignment.TOP: 0.0, VerticalAlignment.CENTER: 0.5, VerticalAlignment.BOTTOM: 1.0}[alignment]
 
 
 def _draw_text(image: Image.Image, spec: CardSpec) -> None:
@@ -46,31 +31,33 @@ def _draw_text(image: Image.Image, spec: CardSpec) -> None:
         if any(text.strip() for text in (spec.title, spec.status, spec.caption)):
             raise ValueError("A text region is required when card text is supplied.")
         return
-    draw = ImageDraw.Draw(image)
-    y = text_box.y
     blocks = (
         (spec.title, text_box.title_size),
         (spec.status, text_box.status_size),
         (spec.caption, text_box.caption_size),
     )
+    measured: list[tuple[ImageText.Text[str], tuple[float, float, float, float]]] = []
     for text, size in blocks:
         if not text.strip():
             continue
         if spec.font is None:
             raise ValueError("A font is required when card text is supplied.")
         font = ImageFont.truetype(str(spec.font), size)
-        ascent, descent = font.getmetrics()
-        if y > text_box.y:
-            y += text_box.block_spacing
-        for index, line in enumerate(_wrap(text, font, text_box.width)):
-            if index:
-                y += text_box.line_spacing
-            left, top, _, bottom = font.getbbox(line)
-            height = max(ascent + descent, bottom - top)
-            if y + height > text_box.y + text_box.height:
-                raise ValueError("Card text does not fit within the content inset.")
-            draw.text((text_box.x - left, y - top), line, font=font, fill=0)
-            y += height
+        block = ImageText.Text(text, font=font, spacing=text_box.line_spacing)
+        block.wrap(text_box.width)
+        bounds = block.get_bbox()
+        if bounds[2] - bounds[0] > text_box.width:
+            raise ValueError("Card text does not fit within the text box width.")
+        measured.append((block, bounds))
+    height = sum(bounds[3] - bounds[1] for _, bounds in measured)
+    height += max(0, len(measured) - 1) * text_box.block_spacing
+    if height > text_box.height:
+        raise ValueError("Card text does not fit within the text box height.")
+    y = text_box.y + int((text_box.height - height) * _alignment_fraction(text_box.vertical_alignment))
+    draw = ImageDraw.Draw(image)
+    for block, (left, top, _, bottom) in measured:
+        draw.text((text_box.x - left, y - top), block, fill=0)
+        y += bottom - top + text_box.block_spacing
 
 
 class CardRenderer:
@@ -86,12 +73,14 @@ class CardRenderer:
         background = Image.new("RGBA", artwork.size, "white")
         background.alpha_composite(artwork)
         art_box = spec.layout.artwork
-        artwork = ImageOps.contain(background.convert("L"), (art_box.width, art_box.height))
-        image = Image.new("L", (WIDTH, HEIGHT), 255)
-        image.paste(
-            artwork,
-            (art_box.x + (art_box.width - artwork.width) // 2, art_box.y + (art_box.height - artwork.height) // 2),
+        artwork = ImageOps.pad(
+            background.convert("L"),
+            (art_box.width, art_box.height),
+            color=255,
+            centering=(0.5, _alignment_fraction(art_box.vertical_alignment)),
         )
+        image = Image.new("L", (WIDTH, HEIGHT), 255)
+        image.paste(artwork, (art_box.x, art_box.y))
         _draw_text(image, spec)
         with BytesIO() as stream:
             image.save(stream, format="PNG")

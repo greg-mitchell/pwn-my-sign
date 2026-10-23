@@ -18,7 +18,7 @@ def main() -> None:
     split = CardLayout.model_validate(tomllib.loads((root / "data/card-layout.toml").read_text()))
     artwork_only = CardLayout.model_validate(tomllib.loads((root / "data/artwork-layout.toml").read_text()))
     alternate = split.model_dump()
-    alternate.update(safe_margin=64, artwork={"x": 64, "y": 64, "width": 400, "height": 592})
+    alternate["artwork"].update(x=64, y=64, width=400, height=592)
     alternate["text"].update(x=496, y=64, width=720, height=592, title_size=48)
     with TemporaryDirectory() as directory:
         temporary = Path(directory)
@@ -49,7 +49,7 @@ def main() -> None:
                 CardLayout.model_validate(alternate),
                 "Service health",
                 "Operational",
-                "A larger safe margin.",
+                "Alternate box positions.",
             ),
         )
         for name, layout, title, status, caption in cases:

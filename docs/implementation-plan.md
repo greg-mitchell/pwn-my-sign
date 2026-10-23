@@ -50,9 +50,10 @@ Keep later prototypes local rather than creating an unnecessary PR stack.
 ## Card acceptance
 
 - Produce deterministic 1280 x 720 grayscale PNGs from user-selected art, fonts, and text.
-- Use an explicit TOML layout with a safe margin, nonoverlapping boxes, and typography settings.
+- Use an explicit TOML layout with nonoverlapping canvas boxes, vertical alignment, and typography settings.
   The supplied split template puts full artwork on the left and optional title, factual status, and caption on the right.
-  The artwork-only template uses the full safe area. Both declare a 32-pixel content inset.
+  The split template centers the complete text stack beside the art; the artwork-only template uses the full canvas.
+  Recommend a device-specific text inset without restricting artwork to it.
   Contain artwork without cropping and reject text that will not fit; omitted text consumes no space and needs no font.
 - Prebuild private static cards. Dynamic rendering from source data is optional later work.
 - Public examples use schematic placeholders or instructions for supplying assets, not meme images or font files.

@@ -58,11 +58,11 @@ uv run python scripts/generate_card_fixtures.py
 
 Identical inputs produce identical bytes within the same Pillow/font rasterizer environment.
 These examples were generated with Pillow 12.3.0; Pillow, FreeType, or bundled font changes can change rendering.
-Tests check the rendered sign format and safe area rather than enforcing cross-version PNG byte equality.
+Tests check the rendered sign format and layout behavior rather than enforcing cross-version PNG byte equality.
 
 ### Split layout with wrapped text
 
-Uses [card-layout.toml](../../data/card-layout.toml), title `Service health overview`, status
+Uses [card-layout.toml](../../data/card-layout.toml) with centered artwork and complete text stack, title `Service health overview`, status
 `All systems operational`, and caption `Synthetic artwork.` followed by `Ready for work.` on a new line.
 
 ![Split layout with wrapped title and caption](cards/split-wrapped.png)
@@ -76,13 +76,14 @@ Uses the same split layout with title `Service health` and omitted status/captio
 ### Artwork only
 
 Uses [artwork-layout.toml](../../data/artwork-layout.toml) with no text region or visible text.
+The artwork reaches the top and bottom canvas edges; no margin is imposed on artwork.
 
 ![Artwork-only card](cards/artwork-only.png)
 
-### Alternate geometry and margin
+### Alternate geometry
 
-Uses a 64-pixel margin, a 400 × 592 artwork box at (64, 64), and a 720 × 592 text box at (496, 64).
+Uses a 400 × 592 artwork box at (64, 64) and a 720 × 592 text box at (496, 64), both vertically centered.
 The title is 48 pixels; the status and caption retain the split layout's 40- and 32-pixel sizes.
-Text is `Service health`, `Operational`, and `A larger safe margin.`.
+Text is `Service health`, `Operational`, and `Alternate box positions.`.
 
-![Alternate geometry with larger safe margin](cards/alternate-layout.png)
+![Alternate geometry with centered text](cards/alternate-layout.png)

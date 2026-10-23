@@ -40,7 +40,8 @@ Python and testing conventions are defined in [the contributor guidelines](../AG
 - Renderers produce deterministic static 1280 x 720 grayscale PNG bytes or write an explicitly named output file.
   Rendering completes before output begins; invalid inputs produce no image and preserve an existing output file.
   Artwork and TOML layout templates are explicit inputs; visible text requires an explicit font.
-  Layouts declare their safe margin, nonoverlapping content boxes, and text typography. Text blocks are optional.
+  Layouts declare nonoverlapping canvas boxes, vertical alignment, and text typography. Text blocks are optional.
+  Text inset advice is device-specific; artwork may reach canvas edges. Pillow owns text wrapping and multiline layout.
   Rendering has no source interpretation or scheduling state.
 - The sender validates the complete input before prompting or scanning Bluetooth. PNG stdin must be static and
   1280 x 720; file inputs retain the image formats supported by the sender.

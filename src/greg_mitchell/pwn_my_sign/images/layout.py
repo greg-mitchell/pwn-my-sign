@@ -1,8 +1,17 @@
+from enum import StrEnum
 from typing import Self
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from greg_mitchell.pwn_my_sign.frame_codec import HEIGHT, WIDTH
+
+
+class VerticalAlignment(StrEnum):
+    """Vertical placement of contained content within its layout box."""
+
+    TOP = "top"
+    CENTER = "center"
+    BOTTOM = "bottom"
 
 
 class Box(BaseModel):
@@ -14,6 +23,7 @@ class Box(BaseModel):
     y: int = Field(ge=0)
     width: int = Field(gt=0)
     height: int = Field(gt=0)
+    vertical_alignment: VerticalAlignment
 
 
 class TextBox(Box):
@@ -27,26 +37,20 @@ class TextBox(Box):
 
 
 class CardLayout(BaseModel):
-    """Explicit layout settings constrained to a sign's safe content area."""
+    """Explicit layout settings constrained to the sign canvas."""
 
     model_config = ConfigDict(frozen=True, extra="forbid")
 
-    safe_margin: int = Field(ge=0)
     artwork: Box
     text: TextBox | None = None
 
     @model_validator(mode="after")
-    def require_safe_boxes(self) -> Self:
-        """Keep both boxes inside the declared margin and separate from each other."""
+    def require_canvas_boxes(self) -> Self:
+        """Keep both boxes inside the canvas and separate from each other."""
         boxes = (self.artwork,) if self.text is None else (self.artwork, self.text)
         for box in boxes:
-            if (
-                box.x < self.safe_margin
-                or box.y < self.safe_margin
-                or box.x + box.width > WIDTH - self.safe_margin
-                or box.y + box.height > HEIGHT - self.safe_margin
-            ):
-                raise ValueError("Layout boxes must fit inside the canvas safe margin.")
+            if box.x + box.width > WIDTH or box.y + box.height > HEIGHT:
+                raise ValueError("Layout boxes must fit inside the canvas.")
         art, text = self.artwork, self.text
         if text is None:
             return self

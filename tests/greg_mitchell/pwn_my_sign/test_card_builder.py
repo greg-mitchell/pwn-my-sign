@@ -117,6 +117,14 @@ def test_render_when_text_is_supplied_returns_visible_text(spec: CardSpec) -> No
         assert ImageChops.invert(image.crop((656, 32, 1248, 688))).getbbox() is not None
 
 
+def test_render_when_split_layout_is_selected_returns_vertically_centered_text_stack(spec: CardSpec) -> None:
+    result = CardRenderer().render(spec)
+
+    with Image.open(BytesIO(result)) as image:
+        bounds = ImageChops.invert(image.crop((656, 0, 1248, 720))).getbbox()
+        assert bounds is not None and abs((bounds[1] + bounds[3]) / 2 - 360) <= 1
+
+
 def test_render_when_content_is_valid_returns_blank_outer_inset(spec: CardSpec) -> None:
     result = CardRenderer().render(spec)
 
@@ -281,7 +289,20 @@ def test_render_when_text_region_is_absent_returns_full_artwork(spec: CardSpec) 
     result = CardRenderer().render(settings)
 
     with Image.open(BytesIO(result)) as image:
-        assert ImageChops.invert(image).getbbox() == (312, 32, 968, 688)
+        assert ImageChops.invert(image).getbbox() == (280, 0, 1000, 720)
+
+
+def test_make_when_artwork_reaches_canvas_edges_returns_full_artwork(spec: CardSpec, tmp_path: Path) -> None:
+    Image.new("L", (1280, 720), 0).save(spec.artwork)
+    template = Path("data/artwork-layout.toml").read_text()
+    template = template.replace("x = 32", "x = 0").replace("y = 32", "y = 0")
+    template = template.replace("width = 1216", "width = 1280").replace("height = 656", "height = 720")
+    layout = tmp_path / "edge-layout.toml"
+    layout.write_text(template)
+
+    result = CliRunner().invoke(mysign, ["image", "make", "--layout", str(layout), "--artwork", str(spec.artwork)])
+
+    assert result.exit_code == 0, result.stderr
 
 
 def test_render_when_text_region_is_absent_with_visible_text_raises_value_error(spec: CardSpec) -> None:
@@ -305,7 +326,7 @@ def test_render_when_artwork_is_below_text_returns_selected_geometry(spec: CardS
 
 
 @pytest.mark.parametrize("name", ("split-wrapped", "title-only", "artwork-only", "alternate-layout"))
-def test_fixture_when_card_is_loaded_returns_safe_grayscale_png(name: str) -> None:
+def test_fixture_when_card_is_loaded_returns_sign_sized_grayscale_png(name: str) -> None:
     with Image.open(Path("tests/fixtures/cards") / f"{name}.png") as image:
         bounds = ImageChops.invert(image).getbbox()
 
@@ -313,26 +334,33 @@ def test_fixture_when_card_is_loaded_returns_safe_grayscale_png(name: str) -> No
             image.mode == "L"
             and image.size == (1280, 720)
             and bounds is not None
-            and bounds[0] >= 32
-            and bounds[1] >= 32
-            and bounds[2] <= 1248
-            and bounds[3] <= 688
+            and bounds[0] >= 0
+            and bounds[1] >= 0
+            and bounds[2] <= 1280
+            and bounds[3] <= 720
         )
 
 
-def test_render_when_title_and_status_are_blank_returns_caption_at_text_box_top(spec: CardSpec) -> None:
+def test_fixture_when_artwork_only_is_loaded_returns_art_at_canvas_edge() -> None:
+    with Image.open("tests/fixtures/cards/artwork-only.png") as image:
+        result = image.getpixel((640, 0))
+
+    assert result == 0
+
+
+def test_render_when_title_and_status_are_blank_returns_centered_caption(spec: CardSpec) -> None:
     settings = spec.model_copy(update={"title": " \n", "status": ""})
 
     result = CardRenderer().render(settings)
 
     with Image.open(BytesIO(result)) as image:
         bounds = ImageChops.invert(image.crop((656, 0, 1248, 720))).getbbox()
-        assert bounds is not None and bounds[1] == 32
+        assert bounds is not None and abs((bounds[1] + bounds[3]) / 2 - 360) <= 1
 
 
-def test_render_when_layout_has_larger_margin_returns_repositioned_art(spec: CardSpec) -> None:
+def test_render_when_layout_has_different_boxes_returns_repositioned_art(spec: CardSpec) -> None:
     layout = spec.layout.model_dump()
-    layout.update(safe_margin=64, artwork={"x": 64, "y": 64, "width": 400, "height": 592})
+    layout["artwork"].update(x=64, y=64, width=400, height=592)
     layout["text"].update(x=496, y=64, width=720, height=592)
     settings = spec.model_copy(update={"layout": CardLayout.model_validate(layout)})
 
@@ -347,7 +375,7 @@ def test_render_when_text_box_is_narrower_raises_word_overflow(spec: CardSpec) -
     layout["text"]["width"] = 50
     settings = spec.model_copy(update={"layout": CardLayout.model_validate(layout)})
 
-    with pytest.raises(ValueError, match="wide"):
+    with pytest.raises(ValueError, match="fit"):
         CardRenderer().render(settings)
 
 
@@ -375,12 +403,12 @@ def test_render_when_text_box_is_shorter_raises_vertical_overflow(spec: CardSpec
     "document",
     (
         "not TOML",
-        "safe_margin = 32",
-        Path("data/card-layout.toml").read_text().replace("safe_margin = 32", "safe_margin = 40"),
+        "[artwork]",
+        Path("data/card-layout.toml").read_text().replace("width = 592", "width = 1280"),
         Path("data/card-layout.toml").read_text().replace("x = 656", "x = 32"),
         Path("data/card-layout.toml").read_text().replace("title_size = 56", "title_size = 0"),
     ),
-    ids=("malformed", "incomplete", "unsafe-box", "overlapping", "invalid-size"),
+    ids=("malformed", "incomplete", "outside-canvas", "overlapping", "invalid-size"),
 )
 def test_make_when_layout_is_invalid_returns_no_stdout(arguments: list[str], tmp_path: Path, document: str) -> None:
     path = tmp_path / "layout.toml"
@@ -402,3 +430,32 @@ def test_make_when_layout_is_invalid_returns_preserved_output(arguments: list[st
     CliRunner().invoke(mysign, [*arguments, "--output", str(output)])
 
     assert output.read_bytes() == b"old card"
+
+
+@pytest.mark.parametrize(("alignment", "edge"), (("top", 32), ("bottom", 688)))
+def test_render_when_art_alignment_is_selected_returns_selected_edge(spec: CardSpec, alignment: str, edge: int) -> None:
+    Image.new("L", (200, 100), 0).save(spec.artwork)
+    layout = spec.layout.model_dump()
+    layout["artwork"]["vertical_alignment"] = alignment
+    settings = spec.model_copy(update={"layout": CardLayout.model_validate(layout)})
+
+    result = CardRenderer().render(settings)
+
+    with Image.open(BytesIO(result)) as image:
+        bounds = ImageChops.invert(image.crop((0, 0, 640, 720))).getbbox()
+        assert bounds is not None and bounds[1 if alignment == "top" else 3] == edge
+
+
+@pytest.mark.parametrize(("alignment", "edge"), (("top", 32), ("bottom", 688)))
+def test_render_when_text_alignment_is_selected_returns_selected_edge(
+    spec: CardSpec, alignment: str, edge: int
+) -> None:
+    layout = spec.layout.model_dump()
+    layout["text"]["vertical_alignment"] = alignment
+    settings = spec.model_copy(update={"layout": CardLayout.model_validate(layout)})
+
+    result = CardRenderer().render(settings)
+
+    with Image.open(BytesIO(result)) as image:
+        bounds = ImageChops.invert(image.crop((656, 0, 1248, 720))).getbbox()
+        assert bounds is not None and abs(bounds[1 if alignment == "top" else 3] - edge) <= 1
