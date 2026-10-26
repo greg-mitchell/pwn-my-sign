@@ -185,19 +185,19 @@ uv run mysign github status --policy data/github-actions.toml \
 
 ### Prepare only changed images
 
-Run the one-shot Python workflow from this checkout after `uv sync`. Select a state directory for this device and use
+Run the one-shot workflow after `uv sync`. Select a state directory for this device and use
 that same directory for every poller and uploader targeting it:
 
 ```bash
 state="${XDG_STATE_HOME:-$HOME/.local/state}/pwn-my-sign/github"
-uv run python scripts/workflow/poll.py --state "$state" --map private/images.toml \
+uv run mysign workflow poll --state "$state" --map private/images.toml \
   --policy data/github-actions.toml
 ```
 
-Omit `--policy` to use GitHub's default indicator and a matching map. With an activated environment, use `python`
-instead of `uv run python`. The thin scripts delegate to the workflow package, which calls the existing status,
+Omit `--policy` to use GitHub's default indicator and a matching map. With an activated environment, use `mysign`
+instead of `uv run mysign`. The workflow commands delegate to the workflow package, which calls the existing status,
 image-selection, and device operations directly in process.
-The script publishes a complete `pending.png` by atomic rename only when bytes change.
+The poller publishes a complete `pending.png` by atomic rename only when bytes change.
 Fetch or selection failure preserves the previous image and returns failure.
 
 The retained image is the last known desired state, even after failed polls. It may be stale; inspect polling errors and
@@ -209,7 +209,7 @@ The image artifacts and publication rules are defined in [workflow state](docs/a
 Once `pending.png` exists, run the uploader in the foreground with `MYSIGN_DEVICE` set:
 
 ```bash
-uv run python scripts/workflow/upload.py --state "$state" --device "$MYSIGN_DEVICE"
+uv run mysign workflow upload --state "$state" --device "$MYSIGN_DEVICE"
 ```
 
 The uploader snapshots pending, skips an already-sent image, and asks the sender to validate that snapshot before its
@@ -223,7 +223,7 @@ Use the name or UUID from [device discovery](#find-the-device-name-or-uuid) for 
 For a simple foreground alternative to installing a scheduled job, leave this running in a terminal:
 
 ```bash
-uv run python scripts/workflow/watch.py --state "$state" --map private/images.toml \
+uv run mysign workflow watch --state "$state" --map private/images.toml \
   --policy data/github-actions.toml --device "$MYSIGN_DEVICE" \
   --interval 300
 ```
@@ -241,17 +241,17 @@ This loop installs no service or notification helper. Keep this terminal's stdin
 
 ### Locks and recovery
 
-Each script creates a separate lock directory (`poll.lock`, `upload.lock`, or `watch.lock`) in the selected state directory.
+Each operation creates a separate lock directory (`poll.lock`, `upload.lock`, or `watch.lock`) in the selected directory.
 An overlapping invocation fails; polling can continue while an upload is in progress.
 Use one state directory per device: separate directories cannot prevent simultaneous transfers to the same sign.
-Normal exit and handled interruption remove temporary files and the script's lock.
+Normal exit and handled interruption remove temporary files and the operation's lock.
 
 A crash or forced kill can leave a lock behind. Read its `pid` file, confirm that the process and any transfer child have
 stopped, then remove that lock's `pid` file and empty directory. Do not remove a lock belonging to an active process.
 An orphaned `.pending.*` or `.last-sent.*` temporary file may be removed after confirming no workflow is using it.
 
-These Python scripts replace the former `.sh` scripts. Update existing invocations and scheduler entries to use
-the checkout's Python interpreter and `.py` paths. The `--mysign` option has been removed because operations run
+The `mysign workflow` commands replace the former workflow scripts. Update existing invocations and scheduler entries
+to use the checkout's `mysign` executable. The `--mysign` option has been removed because operations run
 in process. Existing `pending.png`, `last-sent.png`, and lock directories retain their format.
 
 ### Schedule polling

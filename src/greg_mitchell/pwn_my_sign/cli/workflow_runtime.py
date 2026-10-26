@@ -1,5 +1,6 @@
 import signal
-from collections.abc import Callable
+from collections.abc import Callable, Generator
+from contextlib import contextmanager
 from pathlib import Path
 from types import FrameType
 
@@ -32,7 +33,8 @@ def workflow(state: Path) -> WorkflowOperations:
     )
 
 
-def execute(command: click.Command, register: RegisterSignal = signal.signal) -> None:
+@contextmanager
+def interruption_handlers(register: RegisterSignal = signal.signal) -> Generator[None]:
     """Unwind active operations and locks on Ctrl-C or SIGTERM before exiting."""
 
     def interrupted(number: int, frame: FrameType | None) -> None:
@@ -46,7 +48,7 @@ def execute(command: click.Command, register: RegisterSignal = signal.signal) ->
     previous_int = register(signal.SIGINT, interrupted)
     previous_term = register(signal.SIGTERM, interrupted)
     try:
-        command()
+        yield
     finally:
         register(signal.SIGINT, previous_int)
         register(signal.SIGTERM, previous_term)

@@ -6,8 +6,9 @@ import click
 import pytest
 from click.testing import CliRunner
 
+from greg_mitchell.pwn_my_sign.cli.mysign import main as mysign
 from greg_mitchell.pwn_my_sign.cli.workflow_poll import poll
-from greg_mitchell.pwn_my_sign.cli.workflow_runtime import execute, report, workflow
+from greg_mitchell.pwn_my_sign.cli.workflow_runtime import interruption_handlers, report, workflow
 from greg_mitchell.pwn_my_sign.cli.workflow_upload import upload
 from greg_mitchell.pwn_my_sign.cli.workflow_watch import watch
 from greg_mitchell.pwn_my_sign.workflow.models import PollSettings, UploadSettings, WatchSettings
@@ -136,22 +137,29 @@ def test_workflow_when_constructed_returns_selected_state_directory(tmp_path: Pa
     assert result.state.directory == tmp_path
 
 
-def test_execute_when_command_runs_calls_command() -> None:
-    command = Mock(spec=click.Command("test"))
-    register = Mock(spec=signal.signal, return_value=signal.SIG_DFL)
+def test_mysign_when_workflow_poll_requested_calls_poller() -> None:
+    operations = Mock(spec=WorkflowOperations)
 
-    execute(command, register)
+    CliRunner().invoke(
+        mysign,
+        ["workflow", "poll", "--state", "state", "--map", "map.toml"],
+        obj=operations,
+        catch_exceptions=False,
+    )
 
-    command.assert_called_once_with()
+    operations.poll.assert_called_once_with(PollSettings(map_path=Path("map.toml")))
 
 
 @pytest.mark.parametrize("error", [None, KeyboardInterrupt(), SystemExit(143)])
-def test_execute_when_command_exits_calls_registration_to_restore_handlers(error: BaseException | None) -> None:
-    command = Mock(spec=click.Command("test"), side_effect=error)
+def test_interruption_handlers_when_command_exits_calls_registration_to_restore_handlers(
+    error: BaseException | None,
+) -> None:
     register = Mock(spec=signal.signal, return_value=signal.SIG_DFL)
 
     try:
-        execute(command, register)
+        with interruption_handlers(register):
+            if error is not None:
+                raise error
     except (KeyboardInterrupt, SystemExit):
         pass
 
@@ -159,28 +167,19 @@ def test_execute_when_command_exits_calls_registration_to_restore_handlers(error
 
 
 @pytest.mark.parametrize("number", [signal.SIGINT, signal.SIGTERM])
-def test_execute_when_signal_arrives_raises_interruption(number: signal.Signals) -> None:
+def test_interruption_handlers_when_signal_arrives_raises_interruption(number: signal.Signals) -> None:
     register = Mock(spec=signal.signal, return_value=signal.SIG_DFL)
-
-    def interrupt() -> None:
-        handler = register.call_args_list[0].args[1]
-        handler(number, None)
-
-    command = Mock(spec=click.Command("test"), side_effect=interrupt)
 
     with pytest.raises(KeyboardInterrupt if number == signal.SIGINT else SystemExit):
-        execute(command, register)
+        with interruption_handlers(register):
+            register.call_args_list[0].args[1](number, None)
 
 
-def test_execute_when_interrupted_calls_registration_to_protect_cleanup() -> None:
+def test_interruption_handlers_when_interrupted_calls_registration_to_protect_cleanup() -> None:
     register = Mock(spec=signal.signal, return_value=signal.SIG_DFL)
 
-    def interrupt() -> None:
-        register.call_args_list[0].args[1](signal.SIGTERM, None)
-
-    command = Mock(spec=click.Command("test"), side_effect=interrupt)
-
     with pytest.raises(SystemExit):
-        execute(command, register)
+        with interruption_handlers(register):
+            register.call_args_list[0].args[1](signal.SIGTERM, None)
 
     assert register.call_args_list[2:4] == [call(signal.SIGINT, signal.SIG_IGN), call(signal.SIGTERM, signal.SIG_IGN)]

@@ -28,7 +28,7 @@ body
    * [docs/protocol.md](./docs/protocol.md) records observed device behavior. Preserve the verified wire format.
    * [docs/architecture.md](./docs/architecture.md) defines command boundaries and stream contracts.
    * [docs/implementation-plan.md](./docs/implementation-plan.md) distinguishes completed work from WIP.
-   * Keep external scheduling in documented Unix composition. Thin Python scripts delegate workflow logic and state
+   * Keep external scheduling in documented Unix composition. Thin Python CLI commands delegate workflow logic and state
      to `src`, with injected dependencies and ordinary pytest coverage. Terminal prompts come first; desktop UI is optional.
    * Keep device identities, Android bug reports, raw Bluetooth captures, and investigation photos in ignored `private/`.
    * Unit tests use injected dependencies and `Mock(spec=...)`; no network, Bluetooth, threads, subprocesses, or patching.
@@ -36,7 +36,7 @@ body
 
 5. **CLI and workflow conventions**:
    * Use `uv run` with its default implicit synchronization; do not pass `--no-sync`.
-   * Install only `mysign` through `[project.scripts]`. Use Click domain groups (`device`, `image`, and future `github`)
+   * Install only `mysign` through `[project.scripts]`. Use Click domain groups (`device`, `image`, `github`, `workflow`)
      with a focused module for each group or command under `src/greg_mitchell/pwn_my_sign/cli/`.
      Each leaf command remains one composable operation with explicit stream contracts.
    * Keep domain logic outside `cli/`; introduce focused source packages as functionality grows.

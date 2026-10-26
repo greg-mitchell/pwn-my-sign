@@ -80,7 +80,7 @@ until the timeout. The same regression now passes with output emitted from the d
   A newer pending image survives an older snapshot's successful upload.
 - Keep one poller and one uploader per workflow/device using scheduler supervision or a Unix lock.
   Clean locks on ordinary interruption and document stale-lock recovery after a crash.
-- Keep script entrypoints thin; implement workflow behavior under `src` and test it through ordinary pytest tests
+- Keep the `mysign workflow` CLI thin; implement workflow behavior under `src` and test it through ordinary pytest tests
   using injected dependencies, without subprocesses, threads, network, Bluetooth, or real waits.
 - Document systemd/cron and launchd; do not embed a scheduler in any executable or install jobs automatically.
 - Prompt after image validation and before scanning. Failed polls retain the last known image for manual upload,

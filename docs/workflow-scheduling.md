@@ -5,9 +5,9 @@ and leave uploads as manual terminal actions. They do not wake the sign. Failed 
 images; check the scheduler's errors before sending retained content.
 
 Replace every example path with your absolute checkout, map, policy, and state paths. Run `uv sync` in the checkout
-after dependency changes; scheduled jobs invoke its existing `.venv/bin/python` directly. Keep that checkout and
+after dependency changes; scheduled jobs invoke its existing `.venv/bin/mysign` directly. Keep that checkout and
 environment available. Use one state directory for every invocation targeting the same device.
-The scripts' locks reject overlap, including overlapping invocations from different schedulers.
+The workflow locks reject overlap, including overlapping invocations from different schedulers.
 
 ## Linux: systemd user timer
 
@@ -19,7 +19,7 @@ Description=Prepare the latest GitHub status sign image
 
 [Service]
 Type=oneshot
-ExecStart=/home/you/pwn-my-sign/.venv/bin/python /home/you/pwn-my-sign/scripts/workflow/poll.py --state /home/you/.local/state/pwn-my-sign/github --map /home/you/pwn-my-sign/private/images.toml --policy /home/you/pwn-my-sign/data/github-actions.toml
+ExecStart=/home/you/pwn-my-sign/.venv/bin/mysign workflow poll --state /home/you/.local/state/pwn-my-sign/github --map /home/you/pwn-my-sign/private/images.toml --policy /home/you/pwn-my-sign/data/github-actions.toml
 ```
 
 Create `~/.config/systemd/user/mysign-poll.timer` with:
@@ -57,12 +57,12 @@ Create the state/log directory first. In `crontab -e`, add an entry using your a
 
 ```cron
 PATH=/usr/bin:/bin
-*/5 * * * * /home/you/pwn-my-sign/.venv/bin/python /home/you/pwn-my-sign/scripts/workflow/poll.py --state /home/you/.local/state/pwn-my-sign/github --map /home/you/pwn-my-sign/private/images.toml --policy /home/you/pwn-my-sign/data/github-actions.toml >> /home/you/.local/state/pwn-my-sign/github/poll.log 2>&1
+*/5 * * * * /home/you/pwn-my-sign/.venv/bin/mysign workflow poll --state /home/you/.local/state/pwn-my-sign/github --map /home/you/pwn-my-sign/private/images.toml --policy /home/you/pwn-my-sign/data/github-actions.toml >> /home/you/.local/state/pwn-my-sign/github/poll.log 2>&1
 ```
 
-On macOS substitute `/Users/you/...` paths. Quote paths containing spaces. The scripts use the checkout's Python
+On macOS substitute `/Users/you/...` paths. Quote paths containing spaces. The commands use the checkout's Python
 environment rather than shell startup configuration. Rotate the log as needed and remove the crontab entry
-to stop scheduling. Cron does not provide the workflow lock; the script does.
+to stop scheduling. Cron does not provide the workflow lock; the command does.
 See the [crontab reference](https://man7.org/linux/man-pages/man5/crontab.5.html) for its environment and command syntax.
 
 ## macOS: launchd user agent
@@ -80,8 +80,9 @@ Escape XML special characters in paths if needed.
     <string>local.mysign.github-poll</string>
     <key>ProgramArguments</key>
     <array>
-        <string>/Users/you/pwn-my-sign/.venv/bin/python</string>
-        <string>/Users/you/pwn-my-sign/scripts/workflow/poll.py</string>
+        <string>/Users/you/pwn-my-sign/.venv/bin/mysign</string>
+        <string>workflow</string>
+        <string>poll</string>
         <string>--state</string>
         <string>/Users/you/.local/state/pwn-my-sign/github</string>
         <string>--map</string>

@@ -28,7 +28,7 @@ Policy files require an explicit mode; service mode also requires priority servi
 Indicator policies accept no service settings. The [static Actions policy](../data/github-actions.toml) supplies a complete
 example, selected only by its explicit path. No policy is discovered from global files or the environment.
 
-Thin Python scripts delegate workflow comparisons, persistence, locks, and foreground reminders to focused modules
+The `mysign workflow` group delegates comparisons, persistence, locks, and foreground reminders to focused modules
 under `src`. Workflows compose the existing source, selector, and sender in process with injected dependencies.
 External scheduling belongs to systemd, cron, or launchd; commands do not embed a job manager.
 Python and testing conventions are defined in [the contributor guidelines](../AGENTS.md).
