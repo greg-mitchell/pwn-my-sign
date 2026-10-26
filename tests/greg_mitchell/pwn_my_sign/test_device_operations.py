@@ -10,7 +10,7 @@ from bleak.backends.scanner import AdvertisementData
 from PIL import Image
 
 from greg_mitchell.pwn_my_sign.device.operations import DeviceOperations
-from greg_mitchell.pwn_my_sign.transport import send_frame
+from greg_mitchell.pwn_my_sign.transport import SERVICE, send_frame
 
 
 @pytest.fixture
@@ -25,29 +25,83 @@ def frame_path(tmp_path: Path) -> Path:
     return path
 
 
-def test_scan_when_devices_are_found_returns_discoveries(scanner: Mock) -> None:
-    device = Mock(spec=BLEDevice)
-    advertisement = Mock(spec=AdvertisementData)
-    scanner.discover.return_value = {"test-address": (device, advertisement)}
-
-    result = asyncio.run(DeviceOperations(scanner=scanner).scan(7))
-
-    assert result == ((device, advertisement),)
+@pytest.fixture
+def scan_session(scanner: Mock) -> MagicMock:
+    session = MagicMock(spec=BleakScanner)
+    scanner.return_value = session
+    return session
 
 
-def test_scan_when_called_calls_scanner_with_timeout(scanner: Mock) -> None:
-    scanner.discover.return_value = {}
+@pytest.mark.parametrize(
+    ("services", "all_devices", "expected"),
+    [([SERVICE], False, True), ([SERVICE.upper()], False, True), ([], False, False), ([], True, True)],
+)
+def test_scan_when_advertisement_arrives_calls_report_for_selected_services(
+    scanner: Mock, scan_session: MagicMock, services: list[str], all_devices: bool, expected: bool
+) -> None:
+    device = Mock(spec=BLEDevice, address="test-address")
+    device.name = "test-sign"
+    advertisement = Mock(spec=AdvertisementData, local_name="test-sign", service_uuids=services)
+    report = Mock(spec=Callable)
 
-    asyncio.run(DeviceOperations(scanner=scanner).scan(7))
+    async def advertise(timeout: float) -> None:
+        scanner.call_args.kwargs["detection_callback"](device, advertisement)
 
-    scanner.discover.assert_awaited_once_with(timeout=7, return_adv=True)
+    asyncio.run(DeviceOperations(scanner=scanner, sleep=advertise).scan(7, report, all_devices=all_devices))
+
+    assert report.call_args_list == ([((device, advertisement), {})] if expected else [])
 
 
-def test_scan_when_discovery_fails_raises_os_error(scanner: Mock) -> None:
-    scanner.discover.side_effect = OSError("Bluetooth unavailable")
+@pytest.mark.parametrize("names", [(None, None), ("test-sign", "test-sign"), (None, "test-sign")])
+def test_scan_when_advertisements_repeat_calls_report_only_for_new_names(
+    scanner: Mock, scan_session: MagicMock, names: tuple[str | None, str | None]
+) -> None:
+    device = Mock(spec=BLEDevice, address="test-address")
+    device.name = None
+    advertisements = tuple(
+        Mock(spec=AdvertisementData, local_name=name, rssi=rssi, service_uuids=[SERVICE])
+        for name, rssi in zip(names, (-42, -43), strict=True)
+    )
+    report = Mock(spec=Callable)
+
+    async def advertise(timeout: float) -> None:
+        for advertisement in advertisements:
+            scanner.call_args.kwargs["detection_callback"](device, advertisement)
+
+    asyncio.run(DeviceOperations(scanner=scanner, sleep=advertise).scan(7, report))
+
+    expected = advertisements if names[0] != names[1] else advertisements[:1]
+    assert report.call_args_list == [((device, advertisement), {}) for advertisement in expected]
+
+
+def test_scan_when_called_calls_sleep_with_timeout(scanner: Mock, scan_session: MagicMock) -> None:
+    sleep = AsyncMock(spec=asyncio.sleep)
+
+    asyncio.run(DeviceOperations(scanner=scanner, sleep=sleep).scan(7, Mock(spec=Callable)))
+
+    sleep.assert_awaited_once_with(7)
+
+
+def test_scan_when_window_ends_calls_scanner_stop(scanner: Mock, scan_session: MagicMock) -> None:
+    asyncio.run(DeviceOperations(scanner=scanner, sleep=AsyncMock(spec=asyncio.sleep)).scan(7, Mock(spec=Callable)))
+
+    scan_session.__aexit__.assert_awaited_once_with(None, None, None)
+
+
+def test_scan_when_discovery_fails_raises_os_error(scanner: Mock, scan_session: MagicMock) -> None:
+    scan_session.__aenter__.side_effect = OSError("Bluetooth unavailable")
 
     with pytest.raises(OSError, match="Bluetooth unavailable"):
-        asyncio.run(DeviceOperations(scanner=scanner).scan(7))
+        asyncio.run(DeviceOperations(scanner=scanner).scan(7, Mock(spec=Callable)))
+
+
+def test_scan_when_window_is_interrupted_calls_scanner_stop(scanner: Mock, scan_session: MagicMock) -> None:
+    sleep = AsyncMock(spec=asyncio.sleep, side_effect=asyncio.CancelledError)
+
+    with pytest.raises(asyncio.CancelledError):
+        asyncio.run(DeviceOperations(scanner=scanner, sleep=sleep).scan(7, Mock(spec=Callable)))
+
+    assert scan_session.__aexit__.await_count == 1
 
 
 def test_upload_when_frame_is_valid_calls_sender_with_unchanged_bytes(scanner: Mock, frame_path: Path) -> None:

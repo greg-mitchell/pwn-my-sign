@@ -1,8 +1,11 @@
 import json
+import sys
+from collections.abc import Callable
 from pathlib import Path
-from unittest.mock import ANY, Mock
+from unittest.mock import ANY, MagicMock, Mock
 
 import pytest
+from bleak import BleakScanner
 from bleak.backends.device import BLEDevice
 from bleak.backends.scanner import AdvertisementData
 from click.testing import CliRunner
@@ -11,15 +14,41 @@ from PIL import Image
 from greg_mitchell.pwn_my_sign.cli.mysign import main as mysign
 from greg_mitchell.pwn_my_sign.device.operations import DeviceOperations
 from greg_mitchell.pwn_my_sign.images.test_card import make_test_card
+from greg_mitchell.pwn_my_sign.transport import SERVICE
+
+
+def test_device_scan_when_device_arrives_returns_record_before_scan_window_ends() -> None:
+    device = Mock(spec=BLEDevice, address="test-address")
+    device.name = "test-sign"
+    advertisement = Mock(spec=AdvertisementData, local_name="test-sign", rssi=-42, service_uuids=[SERVICE])
+    scanner = Mock(spec=BleakScanner)
+    session = MagicMock(spec=BleakScanner)
+    scanner.return_value = session
+
+    async def check_output(timeout: float) -> None:
+        assert sys.stdout.tell() == len("--device test-address  name='test-sign'  RSSI=-42\n")
+
+    async def buffered_discovery(**kwargs: object) -> dict[str, tuple[BLEDevice, AdvertisementData]]:
+        await check_output(30)
+        return {"test-address": (device, advertisement)}
+
+    async def enter() -> None:
+        scanner.call_args.kwargs["detection_callback"](device, advertisement)
+
+    scanner.discover.side_effect = buffered_discovery
+    session.__aenter__.side_effect = enter
+
+    CliRunner().invoke(
+        mysign, ["device", "scan"], obj=DeviceOperations(scanner=scanner, sleep=check_output), catch_exceptions=False
+    )
 
 
 def test_device_scan_when_scanning_calls_discovery_with_timeout() -> None:
     operations = Mock(spec=DeviceOperations)
-    operations.scan.return_value = ()
 
     CliRunner().invoke(mysign, ["device", "scan", "--timeout", "7"], obj=operations, catch_exceptions=False)
 
-    operations.scan.assert_awaited_once_with(7)
+    operations.scan.assert_awaited_once_with(7, ANY, all_devices=False)
 
 
 def test_device_scan_when_a_device_is_discovered_returns_record_on_stdout() -> None:
@@ -27,20 +56,45 @@ def test_device_scan_when_a_device_is_discovered_returns_record_on_stdout() -> N
     device.name = "fallback-name"
     advertisement = Mock(spec=AdvertisementData, local_name="test-sign", rssi=-42)
     operations = Mock(spec=DeviceOperations)
-    operations.scan.return_value = ((device, advertisement),)
+
+    async def discover(
+        timeout: float, report: Callable[[BLEDevice, AdvertisementData], None], *, all_devices: bool
+    ) -> None:
+        report(device, advertisement)
+
+    operations.scan.side_effect = discover
 
     result = CliRunner().invoke(mysign, ["device", "scan"], obj=operations)
 
-    assert result.stdout == "test-address  'test-sign'  RSSI -42\n"
+    assert result.stdout == "--device test-address  name='test-sign'  RSSI=-42\n"
 
 
 def test_device_scan_when_scanning_returns_button_prompt_on_stderr() -> None:
     operations = Mock(spec=DeviceOperations)
-    operations.scan.return_value = ()
 
     result = CliRunner().invoke(mysign, ["device", "scan"], obj=operations)
 
-    assert result.stderr == "Scanning; press the sign's button now.\n"
+    assert result.stderr == (
+        "Scanning for 30 seconds (sign service only); press the sign's button now.\n"
+        "Scan complete: no matching devices found. Try --all to show every nearby BLE device.\n"
+    )
+
+
+def test_device_scan_when_all_is_selected_calls_scanner_without_filter() -> None:
+    operations = Mock(spec=DeviceOperations)
+
+    CliRunner().invoke(mysign, ["device", "scan", "--all"], obj=operations, catch_exceptions=False)
+
+    operations.scan.assert_awaited_once_with(30, ANY, all_devices=True)
+
+
+def test_device_scan_when_bluetooth_fails_returns_error_on_stderr() -> None:
+    operations = Mock(spec=DeviceOperations)
+    operations.scan.side_effect = OSError("Bluetooth unavailable")
+
+    result = CliRunner().invoke(mysign, ["device", "scan"], obj=operations)
+
+    assert "Error: Bluetooth unavailable" in result.stderr
 
 
 @pytest.mark.parametrize("source", ("--image", "--frame"))

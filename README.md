@@ -38,7 +38,18 @@ uv run mysign device scan
 ```
 
 Allow Bluetooth access and press the sign's physical button when prompted.
-Use its advertised name or the UUID printed by the scan. On macOS, that UUID is local to the scanning computer.
+Results stream immediately as devices advertise; the scan runs for 30 seconds by default (`--timeout SECONDS`).
+By default, only devices advertising the sign's BLE service are shown. Use `uv run mysign device scan --all` to show
+all nearby BLE devices if the sign does not appear. Repeated advertisements are suppressed; a later name update
+prints a new line. Press Ctrl-C to stop early.
+
+Each result labels the identifier to copy into the sender's `--device` option:
+
+```text
+--device DEVICE-ID  name='advertised-name'  RSSI=-42
+```
+
+Use that device ID or the exact advertised name. On macOS, the ID is a UUID local to the scanning computer.
 The `MAC-…` label printed on a diagnostic test card identifies that image, not the Bluetooth device.
 
 ```sh
@@ -48,7 +59,7 @@ uv run mysign device send --device "$MYSIGN_DEVICE" --image image.png
 
 The sender prints **“Waiting for the selected sign; press its button now.”** to stderr.
 Press the physical button once, then allow roughly two minutes for transfer and refresh.
-The scan wait defaults to 60 seconds and can be changed with `--timeout`.
+The sender waits up to 60 seconds to find the selected sign; change this with `--timeout`.
 
 A zero exit status means the transfer calls completed. Check the display: the captured protocol provides no observed
 application acknowledgement that the intended image is physically visible.

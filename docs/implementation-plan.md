@@ -27,18 +27,20 @@ Keep later prototypes local rather than creating an unnecessary PR stack.
 | 3. Image selection and piping | Add `mysign image match`, then PNG stdin support for the sender in a separate feature commit. | Complete | CLI convention |
 | 4. Card building | Add `mysign image make` with explicit artwork/layout inputs and optional text/font. | Complete | CLI convention |
 | 5. Workflow integration | Shell polling/uploading, terminal bell loop, snapshots, locks, and scheduler docs. | In review | Source, selection, sender |
-| 6. Device discovery usability | Make discovery responsive and device names or UUIDs easy to identify and copy. | Queued next | Workflow review |
+| 6. Device discovery usability | Make discovery responsive and device names or UUIDs easy to identify and copy. | Implemented; live verification pending | Workflow review |
 
-## Next: device discovery usability
+## Device discovery usability
 
-The user reported that `mysign device scan` appeared to hang after the button press, then printed a noisy batch of
-output without an obvious device identifier to copy. Reproduce that experience before changing behavior; the nature
-of the noisy output has not yet been established.
+An offline regression reproduced empty stdout during the scan window: discovery previously buffered all results
+until the timeout. The same regression now passes with output emitted from the detection callback.
 
-- Show progress and make the scan duration clear, with useful results available promptly.
-- Present concise device names and UUIDs with a clear value to pass to `--device`.
-- Investigate whether unrelated BLE advertisements or diagnostic logs obscure the sign; keep detailed diagnostics opt-in.
-- Verify the revised discovery flow manually with the sign, alongside offline behavioral tests.
+- Results stream immediately and explicitly label the device ID with `--device`, alongside name and RSSI.
+- The stderr prompt states the scan duration and filter; completion reports when no matching devices were found.
+- Default filtering selects advertisements containing the sign service. `--all` includes other nearby BLE devices.
+  Repeated advertisements are suppressed while later name updates remain visible.
+- Offline behavioral tests cover streaming, filtering, duplicates, name updates, errors, and scanner cleanup.
+- Live verification with the sign remains pending. The original report's noisy output was not captured, so no
+  specific diagnostic logging source has been established.
 
 ## Source and selection acceptance
 

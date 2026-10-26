@@ -45,6 +45,9 @@ Python and testing conventions are defined in [the contributor guidelines](../AG
   Rendering has no source interpretation or scheduling state.
 - The sender validates the complete input before prompting or scanning Bluetooth. PNG stdin must be static and
   1280 x 720; file inputs retain the image formats supported by the sender.
+- Device discovery streams labeled device IDs, names, and RSSI on stdout as advertisements arrive. By default it
+  selects the sign's advertised service; `--all` includes every nearby BLE device. Duplicate advertisements are
+  suppressed while later name updates remain visible. Scan duration, prompts, completion, and errors go to stderr.
 - Data belongs on stdout; progress, prompts, and errors belong on stderr.
 - Nonzero exit indicates failure. Successful transfer calls do not establish physical display acknowledgement;
   see [the protocol's observed limits](protocol.md).

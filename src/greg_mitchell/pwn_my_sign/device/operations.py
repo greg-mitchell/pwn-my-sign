@@ -11,7 +11,7 @@ from PIL import Image
 
 from greg_mitchell.pwn_my_sign.frame_codec import FRAME_BYTES, encode_image
 from greg_mitchell.pwn_my_sign.images.png import load_png
-from greg_mitchell.pwn_my_sign.transport import send_frame
+from greg_mitchell.pwn_my_sign.transport import SERVICE, send_frame
 
 Sleep = Callable[[float], Awaitable[None]]
 SendFrame = Callable[[BleakClient, bytes, float, Sleep], Awaitable[None]]
@@ -34,9 +34,27 @@ class DeviceOperations:
         self.send = send
         self.sleep = sleep
 
-    async def scan(self, timeout: float) -> tuple[tuple[BLEDevice, AdvertisementData], ...]:
-        devices = await self.scanner.discover(timeout=timeout, return_adv=True)
-        return tuple(devices.values())
+    async def scan(
+        self,
+        timeout: float,
+        report: Callable[[BLEDevice, AdvertisementData], None],
+        *,
+        all_devices: bool = False,
+    ) -> None:
+        """Report matching devices as they arrive, including later name updates."""
+        seen: dict[str, str | None] = {}
+
+        def detected(device: BLEDevice, advertisement: AdvertisementData) -> None:
+            if not all_devices and SERVICE not in {uuid.casefold() for uuid in advertisement.service_uuids}:
+                return
+            name = advertisement.local_name or device.name
+            if device.address in seen and seen[device.address] == name:
+                return
+            seen[device.address] = name
+            report(device, advertisement)
+
+        async with self.scanner(detection_callback=detected):
+            await self.sleep(timeout)
 
     async def upload(
         self,
