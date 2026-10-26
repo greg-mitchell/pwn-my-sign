@@ -45,7 +45,7 @@ select = ["E", "F", "W", "I", "UP006"]
 known-first-party = ["greg_mitchell"]
 
 [tool.ty.src]
-include = ["src", "tests"]
+include = ["src", "tests", "scripts/workflow"]
 
 [tool.pytest.ini_options]
 pythonpath = ["src"]
@@ -61,8 +61,7 @@ lint = "ruff check"
 format = "ruff format"
 typecheck = "ty check"
 test = "pytest"
-workflow-test = "bash tests/workflow/run.sh"
-check-all = { sequence = ["lint", "typecheck", "test", "workflow-test"], ignore_fail = false }
+check-all = { sequence = ["lint", "typecheck", "test"], ignore_fail = false }
 fix-all = { sequence = ["lint --fix", "format"], ignore_fail = false }
 
 [tool.uv]

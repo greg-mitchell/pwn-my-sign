@@ -185,18 +185,18 @@ uv run mysign github status --policy data/github-actions.toml \
 
 ### Prepare only changed images
 
-Run the one-shot Bash workflow from this checkout after `uv sync`. Select a state directory for this device and use
+Run the one-shot Python workflow from this checkout after `uv sync`. Select a state directory for this device and use
 that same directory for every poller and uploader targeting it:
 
 ```bash
 state="${XDG_STATE_HOME:-$HOME/.local/state}/pwn-my-sign/github"
-uv run scripts/workflow/poll.sh --state "$state" --map private/images.toml \
+uv run python scripts/workflow/poll.py --state "$state" --map private/images.toml \
   --policy data/github-actions.toml
 ```
 
-Omit `--policy` to use GitHub's default indicator and a matching map. `uv run` supplies the environment with `mysign`
-on `PATH`. With an activated environment, run the executable scripts directly instead.
-`--mysign` optionally selects a different executable, useful for scheduler configuration and offline checks.
+Omit `--policy` to use GitHub's default indicator and a matching map. With an activated environment, use `python`
+instead of `uv run python`. The thin scripts delegate to the workflow package, which calls the existing status,
+image-selection, and device operations directly in process.
 The script publishes a complete `pending.png` by atomic rename only when bytes change.
 Fetch or selection failure preserves the previous image and returns failure.
 
@@ -209,7 +209,7 @@ The image artifacts and publication rules are defined in [workflow state](docs/a
 Once `pending.png` exists, run the uploader in the foreground with `MYSIGN_DEVICE` set:
 
 ```bash
-uv run scripts/workflow/upload.sh --state "$state" --device "$MYSIGN_DEVICE"
+uv run python scripts/workflow/upload.py --state "$state" --device "$MYSIGN_DEVICE"
 ```
 
 The uploader snapshots pending, skips an already-sent image, and asks the sender to validate that snapshot before its
@@ -223,7 +223,7 @@ Use the name or UUID from [device discovery](#find-the-device-name-or-uuid) for 
 For a simple foreground alternative to installing a scheduled job, leave this running in a terminal:
 
 ```bash
-uv run scripts/workflow/watch.sh --state "$state" --map private/images.toml \
+uv run python scripts/workflow/watch.py --state "$state" --map private/images.toml \
   --policy data/github-actions.toml --device "$MYSIGN_DEVICE" \
   --interval 300
 ```
@@ -248,7 +248,11 @@ Normal exit and handled interruption remove temporary files and the script's loc
 
 A crash or forced kill can leave a lock behind. Read its `pid` file, confirm that the process and any transfer child have
 stopped, then remove that lock's `pid` file and empty directory. Do not remove a lock belonging to an active process.
-An orphaned `.pending.*` or `.upload.*` temporary file may be removed after confirming no workflow is using it.
+An orphaned `.pending.*` or `.last-sent.*` temporary file may be removed after confirming no workflow is using it.
+
+These Python scripts replace the former `.sh` scripts. Update existing invocations and scheduler entries to use
+the checkout's Python interpreter and `.py` paths. The `--mysign` option has been removed because operations run
+in process. Existing `pending.png`, `last-sent.png`, and lock directories retain their format.
 
 ### Schedule polling
 
@@ -272,8 +276,8 @@ uv run poe check-all
 ```
 
 Available tasks, entrypoints, and dependencies are defined in [pyproject.toml](pyproject.toml).
-`check-all` includes offline shell workflow checks with fake commands, separate from the subprocess-free Python tests.
-Run those alone with `uv run poe workflow-test`; they do not contact GitHub or Bluetooth.
+Workflow behavior is covered by ordinary pytest tests with injected dependencies, without network, Bluetooth,
+subprocesses, or real waits. Run those alone with `uv run pytest -k workflow`.
 See [the contributor guidelines](AGENTS.md) for required checks, coding conventions, and test rules.
 Install commit hooks with `uv run pre-commit install`.
 

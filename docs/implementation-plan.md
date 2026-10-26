@@ -26,7 +26,7 @@ Keep later prototypes local rather than creating an unnecessary PR stack.
 | 2. GitHub source | Add `mysign github status`, validated summary data, explicit service policies, and offline inputs. | Complete | CLI convention |
 | 3. Image selection and piping | Add `mysign image match`, then PNG stdin support for the sender in a separate feature commit. | Complete | CLI convention |
 | 4. Card building | Add `mysign image make` with explicit artwork/layout inputs and optional text/font. | Complete | CLI convention |
-| 5. Workflow integration | Shell polling/uploading, terminal bell loop, snapshots, locks, and scheduler docs. | In review | Source, selection, sender |
+| 5. Workflow integration | Python polling/uploading, terminal bell loop, snapshots, locks, and scheduler docs. | Implemented | Source, selection, sender |
 | 6. Device discovery usability | Make discovery responsive and device names or UUIDs easy to identify and copy. | Implemented; live verification pending | Workflow review |
 
 ## Device discovery usability
@@ -80,7 +80,8 @@ until the timeout. The same regression now passes with output emitted from the d
   A newer pending image survives an older snapshot's successful upload.
 - Keep one poller and one uploader per workflow/device using scheduler supervision or a Unix lock.
   Clean locks on ordinary interruption and document stale-lock recovery after a crash.
-- Test shell workflows as integration checks, separate from subprocess-free Python unit tests.
+- Keep script entrypoints thin; implement workflow behavior under `src` and test it through ordinary pytest tests
+  using injected dependencies, without subprocesses, threads, network, Bluetooth, or real waits.
 - Document systemd/cron and launchd; do not embed a scheduler in any executable or install jobs automatically.
 - Prompt after image validation and before scanning. Failed polls retain the last known image for manual upload,
   without an age gate; schedule polling only.
@@ -89,7 +90,9 @@ until the timeout. The same regression now passes with output emitted from the d
 
 Validation so far: live foreground polling selected the healthy private card, unchanged polling preserved pending,
 foreground upload succeeded, and the user confirmed the card on the physical display. A repeated upload skipped transfer.
-The terminal loop has offline integration coverage. The systemd, cron, and launchd installation recipes remain untested;
+The Python migration has offline behavioral coverage for publication, snapshots, locking, retries, terminal input,
+and interruption cleanup. Live foreground validation above predates the migration; revalidation remains pending.
+The systemd, cron, and launchd installation recipes remain untested;
 no service or scheduled job was installed during validation.
 
 ## Optional desktop and rendering work

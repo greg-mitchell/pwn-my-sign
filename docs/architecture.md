@@ -13,7 +13,7 @@ composition. Keep CLI parsing separate from domain operations, and inject side-e
 flowchart LR
     source[Source adapter] -->|status code| selector[Image selector]
     renderer[Image renderer] -->|assets| selector
-    selector -->|PNG| workflow[Shell workflow]
+    selector -->|PNG| workflow[Python workflow]
     workflow -->|image snapshot| sender[Device sender]
     sender -->|BLE| sign[Sign]
 ```
@@ -28,7 +28,9 @@ Policy files require an explicit mode; service mode also requires priority servi
 Indicator policies accept no service settings. The [static Actions policy](../data/github-actions.toml) supplies a complete
 example, selected only by its explicit path. No policy is discovered from global files or the environment.
 
-Scheduling, comparisons, persistence, and locks belong in Unix shell composition. Commands do not embed a job manager.
+Thin Python scripts delegate workflow comparisons, persistence, locks, and foreground reminders to focused modules
+under `src`. Workflows compose the existing source, selector, and sender in process with injected dependencies.
+External scheduling belongs to systemd, cron, or launchd; commands do not embed a job manager.
 Python and testing conventions are defined in [the contributor guidelines](../AGENTS.md).
 
 ## Stream and failure contracts
@@ -81,7 +83,7 @@ apply these contracts.
 The terminal prompt is the primary interface while uploads require a physical button press. Prompt after validation and
 before discovery, so the person knows when to wake the sign.
 
-An optional foreground shell loop invokes the one-shot poller and rings a terminal bell while desired content differs
+An optional foreground Python loop invokes the one-shot poller and rings a terminal bell while desired content differs
 from last-sent. Enter invokes the same uploader; its prompt supplies the button timing. The loop polls again when its
 input interval expires, retries after errors, and exits on interruption or EOF at its prompt. Failed polls do not offer stale
 pending content for upload during that iteration. It installs no scheduler and keeps no separate reminder history.
