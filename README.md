@@ -111,10 +111,10 @@ See [synthetic rendered examples](tests/fixtures/README.md#rendered-card-example
 ## Composable tools
 
 | Command | Input | Output |
-| --- | --- | --- | --- |
+| --- | --- | --- |
 | `mysign github status` | GitHub's summary endpoint or saved JSON | One status code on stdout |
 | `mysign image match --map images.toml` | One code on stdin | Selected PNG bytes on stdout |
-| `mysign image make` | Explicit layout/artwork, optional text and font | PNG bytes or named file 
+| `mysign image make` | Explicit layout/artwork, optional text and font | PNG bytes or named file |
 | `mysign device send` | `--image FILE` or `--frame FILE` | Diagnostics on stderr, exit status |
 | `mysign device send --image -` | PNG on stdin | Diagnostics on stderr, exit status |
 | `mysign image test-card` | Output/font options | Diagnostic PNG and ID metadata |
@@ -182,13 +182,27 @@ uv run mysign github status --policy data/github-actions.toml \
 
 ## Image workflows
 
-The image workflow stitches together an **image producer** with a **poller** which detects changes, and a
-**sender** which manages exactly-one writer sending to the sign.
+The image workflow separates image production, desired content, and device transfers:
+
+| Component | Responsibility |
+| --- | --- |
+| Image producer | Generate PNG bytes, using tools such as `image make` or `image match`. |
+| `workflow poll` | Obtain and validate one image, then publish changed desired content as `pending.png`. |
+| `workflow upload` | Snapshot pending, skip already-sent content, coordinate uploads with a lock, and record success. |
+| `device send` | Validate and encode an image, then transfer it over Bluetooth. |
+| `workflow watch` | Repeat polling and offer an upload when pending differs from last sent. |
+
+A producer command must write one complete static **1280 × 720 PNG to stdout**, write diagnostics to stderr, and
+exit zero on success. The workflow coordinates uploads sharing a state directory; direct `device send` calls do not
+acquire that workflow lock.
+
+Validation protects each command's boundary: `image match` validates its selected asset before emitting it, poll
+validates arbitrary input before publication, and the device sender validates the snapshot before transfer.
 
 ### Poll: prepare the image for sending
 
-The poller detects whether the provided image differs from the current image on the sign, and prepares the new
-input for sending if it differs. Some canned options:
+The poller obtains and validates one desired image, then updates `pending.png` only when its bytes differ from the
+existing pending image. It does not contact the sign or compare against `last-sent.png`. Some input options:
 
 ```bash
 # workflow state, with the image to send
@@ -210,7 +224,11 @@ uv run mysign workflow poll --state "$state" -- private/produce-image
   - A failed producer's output is discarded, even when it contains a valid PNG.
 - The poller publishes a complete `pending.png` by atomic rename only when bytes change.
 - Producer, read, or validation failure preserves the previous image and returns failure.
-- When making a pipeline in bash, always set `-o pipefail`.
+
+For producer pipelines, invoke Bash explicitly with `-o pipefail` so an upstream failure makes the producer fail.
+Producer-command mode checks that exit status before publishing. With `--image -`, poll receives only bytes and
+cannot observe upstream exit codes; even a surrounding shell's `pipefail` cannot prevent poll from publishing a valid
+PNG before the shell reports a pipeline failure. Use producer-command mode when upstream success must gate publication.
 
 The image artifacts and publication rules are defined in [workflow state](docs/architecture.md#workflow-state).
 
@@ -222,8 +240,10 @@ Once `pending.png` exists, run the uploader:
 uv run mysign workflow upload --state "$state" --device "$MYSIGN_DEVICE"
 ```
 
-The uploader snapshots pending, skips an already-sent image, and asks the sender to validate that snapshot before its
-button prompt and Bluetooth scan. Only successful transfer calls advance `last-sent.png` to the snapshot.
+The uploader snapshots `pending.png`, compares it with `last-sent.png`, and skips transfer when the bytes match.
+Otherwise it invokes the device sender, which validates that snapshot before its button prompt and Bluetooth scan.
+Only successful transfer calls advance `last-sent.png` to the snapshot; this records transfer completion rather than
+confirming the physical display's current image.
 A newer pending image published during the transfer remains available for the next upload.
 
 The snapshot follows the [workflow state contract](docs/architecture.md#workflow-state).
@@ -237,10 +257,9 @@ uv run mysign workflow watch --state "$state" --device "$MYSIGN_DEVICE" \
   --interval 300 -- private/produce-image
 ```
 
-This composes the above tools into a poll loop.
-
-The loop runs the producer immediately and repeats it after each interval. When pending differs from last-sent,
-it writes a terminal bell and offers Enter to upload. Press Enter, then press the sign's button when the uploader prompts.
+Poll alone runs once. Watch repeats the poll operation, running the producer immediately and again after each interval.
+When pending differs from last-sent, it writes a terminal bell and offers Enter to invoke the upload operation.
+Press Enter, then press the sign's button when the uploader prompts.
 
 If you leave the prompt alone, it polls again after the interval and reminds you while an update remains unsent.
 
@@ -257,7 +276,8 @@ uv run mysign workflow watch --state "$state" --device "$MYSIGN_DEVICE" --interv
 ### Locks and recovery
 
 Each operation creates a separate lock directory (`poll.lock`, `upload.lock`, or `watch.lock`) in the selected directory.
-An overlapping invocation fails; polling can continue while an upload is in progress. Use one state directory per device.
+An overlapping invocation of the same operation using the same state directory fails; polling can continue while an
+upload is in progress. Use one state directory per device so workflow uploads coordinate through the same lock.
 
 A crash or forced kill can leave a lock behind. Read its `pid` file, confirm that the process and any transfer child have
 stopped, then remove that lock's `pid` file and empty directory. Do not remove a lock belonging to an active process.
