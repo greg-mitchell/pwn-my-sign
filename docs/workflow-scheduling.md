@@ -1,13 +1,19 @@
-# Schedule status polling
+# Schedule image polling
 
-First run the [foreground workflow](../README.md#github-workflow) successfully. These examples poll every five minutes
+First run the [foreground workflow](../README.md#image-workflows) successfully. These examples poll every five minutes
 and leave uploads as manual terminal actions. They do not wake the sign. Failed polls retain potentially stale pending
 images; check the scheduler's errors before sending retained content.
 
-Replace every example path with your absolute checkout, map, policy, and state paths. Run `uv sync` in the checkout
+Replace every example path with your absolute checkout, producer, and state paths. Run `uv sync` in the checkout
 after dependency changes; scheduled jobs invoke its existing `.venv/bin/mysign` directly. Keep that checkout and
 environment available. Use one state directory for every invocation targeting the same device.
 The workflow locks reject overlap, including overlapping invocations from different schedulers.
+
+The examples use a user-provided executable at `private/produce-image`. It must write one complete static
+1280 x 720 PNG to stdout and exit zero; diagnostics belong on stderr. Give it explicit absolute paths to assets and
+executables, because schedulers do not inherit your terminal's working directory or activated environment.
+For a pipeline, wrap it in a producer script that propagates failures (for example, Bash with `set -euo pipefail`).
+GitHub is one possible source; provider options belong to the producer, not the workflow.
 
 ## Linux: systemd user timer
 
@@ -15,18 +21,18 @@ Create `~/.config/systemd/user/mysign-poll.service` with:
 
 ```ini
 [Unit]
-Description=Prepare the latest GitHub status sign image
+Description=Prepare the latest sign image
 
 [Service]
 Type=oneshot
-ExecStart=/home/you/pwn-my-sign/.venv/bin/mysign workflow poll --state /home/you/.local/state/pwn-my-sign/github --map /home/you/pwn-my-sign/private/images.toml --policy /home/you/pwn-my-sign/data/github-actions.toml
+ExecStart=/home/you/pwn-my-sign/.venv/bin/mysign workflow poll --state /home/you/.local/state/pwn-my-sign/display -- /home/you/pwn-my-sign/private/produce-image
 ```
 
 Create `~/.config/systemd/user/mysign-poll.timer` with:
 
 ```ini
 [Unit]
-Description=Poll GitHub status every five minutes
+Description=Prepare the sign image every five minutes
 
 [Timer]
 OnStartupSec=1min
@@ -57,7 +63,7 @@ Create the state/log directory first. In `crontab -e`, add an entry using your a
 
 ```cron
 PATH=/usr/bin:/bin
-*/5 * * * * /home/you/pwn-my-sign/.venv/bin/mysign workflow poll --state /home/you/.local/state/pwn-my-sign/github --map /home/you/pwn-my-sign/private/images.toml --policy /home/you/pwn-my-sign/data/github-actions.toml >> /home/you/.local/state/pwn-my-sign/github/poll.log 2>&1
+*/5 * * * * /home/you/pwn-my-sign/.venv/bin/mysign workflow poll --state /home/you/.local/state/pwn-my-sign/display -- /home/you/pwn-my-sign/private/produce-image >> /home/you/.local/state/pwn-my-sign/display/poll.log 2>&1
 ```
 
 On macOS substitute `/Users/you/...` paths. Quote paths containing spaces. The commands use the checkout's Python
@@ -84,20 +90,18 @@ Escape XML special characters in paths if needed.
         <string>workflow</string>
         <string>poll</string>
         <string>--state</string>
-        <string>/Users/you/.local/state/pwn-my-sign/github</string>
-        <string>--map</string>
-        <string>/Users/you/pwn-my-sign/private/images.toml</string>
-        <string>--policy</string>
-        <string>/Users/you/pwn-my-sign/data/github-actions.toml</string>
+        <string>/Users/you/.local/state/pwn-my-sign/display</string>
+        <string>--</string>
+        <string>/Users/you/pwn-my-sign/private/produce-image</string>
     </array>
     <key>StartInterval</key>
     <integer>300</integer>
     <key>RunAtLoad</key>
     <true/>
     <key>StandardOutPath</key>
-    <string>/Users/you/.local/state/pwn-my-sign/github/poll.log</string>
+    <string>/Users/you/.local/state/pwn-my-sign/display/poll.log</string>
     <key>StandardErrorPath</key>
-    <string>/Users/you/.local/state/pwn-my-sign/github/poll.log</string>
+    <string>/Users/you/.local/state/pwn-my-sign/display/poll.log</string>
 </dict>
 </plist>
 ```

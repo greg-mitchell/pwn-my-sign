@@ -38,7 +38,7 @@ def report() -> Mock:
 @pytest.fixture
 def settings() -> WatchSettings:
     return WatchSettings(
-        poll=PollSettings(map_path=Path("map.toml")), upload=UploadSettings(device="test sign"), interval=7
+        poll=PollSettings(command=("produce-image",)), upload=UploadSettings(device="test sign"), interval=7
     )
 
 

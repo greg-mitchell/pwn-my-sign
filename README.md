@@ -73,7 +73,7 @@ printf '%s\n' ok | uv run mysign image match --map private/images.toml \
   | uv run mysign device send --device "$MYSIGN_DEVICE" --image -
 ```
 
-For repeated updates, prepare and snapshot pending images using the [GitHub workflow](#github-workflow).
+For repeated updates, prepare and snapshot pending images using the [image workflow](#image-workflows).
 
 ## Build a recognizable test image
 
@@ -125,6 +125,9 @@ These are the intended interfaces. Only the rows marked **working** are installe
 | `mysign device send` | `--image FILE` or `--frame FILE` | Diagnostics on stderr, exit status | Working |
 | `mysign device send --image -` | PNG on stdin | Diagnostics on stderr, exit status | Working |
 | `mysign image test-card` | Output/font options | Diagnostic PNG and ID metadata | Working |
+| `mysign workflow poll` | PNG file/stdin or producer command | Changed `pending.png` in a state directory | Working |
+| `mysign workflow upload` | Pending image and device | Transfer and recorded snapshot | Working |
+| `mysign workflow watch` | Producer command, device, interval | Foreground reminders and explicit uploads | Working |
 
 See [architecture](docs/architecture.md) for command boundaries, stream contracts, and workflow invariants.
 
@@ -183,22 +186,34 @@ uv run mysign github status --policy data/github-actions.toml \
   | uv run mysign image match --map private/images.toml > private/selected.png
 ```
 
+## Image workflows
+
+Workflows accept images from any source. A producer command writes one complete static 1280 × 720 PNG to stdout,
+writes diagnostics to stderr, and exits zero on success. The workflow validates the image before publication.
+The producer receives `/dev/null` as stdin so the watcher's terminal remains available for Enter-to-upload prompts.
+
 ### Prepare only changed images
 
 Run the one-shot workflow after `uv sync`. Select a state directory for this device and use
 that same directory for every poller and uploader targeting it:
 
 ```bash
-state="${XDG_STATE_HOME:-$HOME/.local/state}/pwn-my-sign/github"
-uv run mysign workflow poll --state "$state" --map private/images.toml \
-  --policy data/github-actions.toml
+state="${XDG_STATE_HOME:-$HOME/.local/state}/pwn-my-sign/display"
+uv run mysign workflow poll --state "$state" --image private/selected.png
+cat private/selected.png | uv run mysign workflow poll --state "$state" --image -
+# Or invoke a producer directly, checking its exit status before publication:
+uv run mysign workflow poll --state "$state" -- private/produce-image
 ```
 
-Omit `--policy` to use GitHub's default indicator and a matching map. With an activated environment, use `mysign`
-instead of `uv run mysign`. The workflow commands delegate to the workflow package, which calls the existing status,
-image-selection, and device operations directly in process.
+With an activated environment, use `mysign` instead of `uv run mysign`. Choose either `--image FILE` (`-` for stdin)
+or a producer command after `--`. Arguments are passed literally, without an implicit shell; paths resolve from the
+current working directory. A failed producer's output is discarded, even when it contains a valid PNG.
 The poller publishes a complete `pending.png` by atomic rename only when bytes change.
-Fetch or selection failure preserves the previous image and returns failure.
+Producer, read, or validation failure preserves the previous image and returns failure.
+
+For producer pipelines, invoke a shell explicitly and propagate every stage's failure (for example with Bash's
+`-o pipefail`). A consumer reading `--image -` cannot observe upstream exit codes; use a producer command when those
+exit codes must gate publication.
 
 The retained image is the last known desired state, even after failed polls. It may be stale; inspect polling errors and
 the source before manually sending it. There is no age gate, automatic upload, or healthy fallback.
@@ -223,12 +238,12 @@ Use the name or UUID from [device discovery](#find-the-device-name-or-uuid) for 
 For a simple foreground alternative to installing a scheduled job, leave this running in a terminal:
 
 ```bash
-uv run mysign workflow watch --state "$state" --map private/images.toml \
-  --policy data/github-actions.toml --device "$MYSIGN_DEVICE" \
-  --interval 300
+uv run mysign workflow watch --state "$state" --device "$MYSIGN_DEVICE" \
+  --interval 300 -- private/produce-image
 ```
 
-The loop polls immediately. When pending differs from last-sent, it writes a terminal bell and offers Enter to upload.
+The loop runs the producer immediately and repeats it after each interval. When pending differs from last-sent,
+it writes a terminal bell and offers Enter to upload.
 Press Enter, then press the sign's button when the uploader prompts. Upload validation and transfer use the existing
 one-shot uploader. It sends a snapshot; updates published during transfer remain pending for the next run.
 
@@ -239,20 +254,35 @@ without offering the retained image for upload that iteration. Ctrl-C stops the 
 Bell sound, visual flashing, and background-tab badges depend on your terminal's bell settings.
 This loop installs no service or notification helper. Keep this terminal's stdin attached so it can receive Enter.
 
+For example, the GitHub source and image selector compose as one producer without any GitHub settings in the workflow:
+
+```sh
+uv run mysign workflow watch --state "$state" --device "$MYSIGN_DEVICE" --interval 300 \
+  -- bash -o pipefail -c '
+    mysign github status --policy data/github-actions.toml |
+      mysign image match --map private/images.toml
+  '
+```
+
+Omit `--policy` from the producer to use GitHub's default indicator and a matching map. The producer can instead
+be any executable that emits the PNG contract, including a renderer or a program unrelated to GitHub.
+
 ### Locks and recovery
 
 Each operation creates a separate lock directory (`poll.lock`, `upload.lock`, or `watch.lock`) in the selected directory.
 An overlapping invocation fails; polling can continue while an upload is in progress.
 Use one state directory per device: separate directories cannot prevent simultaneous transfers to the same sign.
-Normal exit and handled interruption remove temporary files and the operation's lock.
+Normal exit and handled interruption remove temporary files and the operation's lock. Interruption terminates the
+active producer's process group and reaps it before releasing locks; after five seconds it escalates to SIGKILL.
 
 A crash or forced kill can leave a lock behind. Read its `pid` file, confirm that the process and any transfer child have
 stopped, then remove that lock's `pid` file and empty directory. Do not remove a lock belonging to an active process.
 An orphaned `.pending.*` or `.last-sent.*` temporary file may be removed after confirming no workflow is using it.
 
 The `mysign workflow` commands replace the former workflow scripts. Update existing invocations and scheduler entries
-to use the checkout's `mysign` executable. The `--mysign` option has been removed because operations run
-in process. Existing `pending.png`, `last-sent.png`, and lock directories retain their format.
+to use the checkout's `mysign` executable. Replace workflow `--map`/`--policy` options with an explicit producer;
+these remain options of `image match` and `github status`, respectively. The `--mysign` option has been removed.
+Existing `pending.png`, `last-sent.png`, and lock directories retain their format.
 
 ### Schedule polling
 

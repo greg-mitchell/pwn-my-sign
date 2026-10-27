@@ -1,5 +1,4 @@
 from collections.abc import Callable
-from http.client import HTTPException
 
 from bleak.exc import BleakError
 
@@ -29,7 +28,7 @@ class Watcher:
             while True:
                 try:
                     self._workflow.poll(settings.poll)
-                except (OSError, ValueError, HTTPException) as error:
+                except (OSError, ValueError) as error:
                     self._report(f"Polling failed: {error}; retrying in {settings.interval} seconds.")
                     self._sleep(settings.interval)
                     continue

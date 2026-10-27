@@ -1,4 +1,5 @@
 import signal
+import sys
 from collections.abc import Callable, Generator
 from contextlib import contextmanager
 from pathlib import Path
@@ -7,11 +8,10 @@ from types import FrameType
 import click
 
 from greg_mitchell.pwn_my_sign.device.operations import DeviceOperations
-from greg_mitchell.pwn_my_sign.github.source import GitHubSource
-from greg_mitchell.pwn_my_sign.images.selection import ImageSelector
 from greg_mitchell.pwn_my_sign.workflow.operations import WorkflowOperations
+from greg_mitchell.pwn_my_sign.workflow.producer import CommandProducer
 from greg_mitchell.pwn_my_sign.workflow.sender import SnapshotSender
-from greg_mitchell.pwn_my_sign.workflow.source import StatusImageSource
+from greg_mitchell.pwn_my_sign.workflow.source import ImageSource
 from greg_mitchell.pwn_my_sign.workflow.state import WorkflowState
 
 SignalHandler = Callable[[int, FrameType | None], None] | int | None
@@ -27,7 +27,7 @@ def workflow(state: Path) -> WorkflowOperations:
     """Wire production adapters while leaving domain operations injectable."""
     return WorkflowOperations(
         WorkflowState(state),
-        StatusImageSource(GitHubSource(), ImageSelector()),
+        ImageSource(CommandProducer(), sys.stdin.buffer),
         SnapshotSender(DeviceOperations()),
         report,
     )

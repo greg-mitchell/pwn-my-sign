@@ -1,8 +1,8 @@
 from enum import StrEnum
 from pathlib import Path
-from typing import Annotated
+from typing import Annotated, Self
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 
 class WorkflowKind(StrEnum):
@@ -16,8 +16,16 @@ class PollSettings(BaseModel):
 
     model_config = ConfigDict(frozen=True, extra="forbid")
 
-    map_path: Path
-    policy_path: Path | None = None
+    command: tuple[str, ...] = ()
+    image_path: Path | None = None
+
+    @model_validator(mode="after")
+    def validate_source(self) -> Self:
+        if bool(self.command) == (self.image_path is not None):
+            raise ValueError("Provide either an image path or a producer command.")
+        if self.command and not self.command[0]:
+            raise ValueError("The producer executable must not be empty.")
+        return self
 
 
 class UploadSettings(BaseModel):
@@ -36,3 +44,9 @@ class WatchSettings(BaseModel):
     poll: PollSettings
     upload: UploadSettings
     interval: Annotated[int, Field(gt=0, strict=True)] = 300
+
+    @model_validator(mode="after")
+    def validate_repeatable_source(self) -> Self:
+        if not self.poll.command:
+            raise ValueError("Watching requires a repeatable producer command.")
+        return self

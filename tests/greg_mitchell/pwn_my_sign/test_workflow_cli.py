@@ -21,14 +21,32 @@ def test_poll_when_options_selected_calls_workflow_with_settings() -> None:
 
     CliRunner().invoke(
         poll,
-        ["--state", "state", "--map", "map with spaces.toml", "--policy", "policy.toml"],
+        ["--state", "state", "--image", "image with spaces.png"],
         obj=operations,
         catch_exceptions=False,
     )
 
-    operations.poll.assert_called_once_with(
-        PollSettings(map_path=Path("map with spaces.toml"), policy_path=Path("policy.toml"))
+    operations.poll.assert_called_once_with(PollSettings(image_path=Path("image with spaces.png")))
+
+
+def test_poll_when_producer_selected_calls_workflow_with_literal_arguments() -> None:
+    operations = Mock(spec=WorkflowOperations)
+
+    CliRunner().invoke(
+        poll,
+        ["--state", "state", "--", "producer with spaces", "--title", "a; $(literal)"],
+        obj=operations,
+        catch_exceptions=False,
     )
+
+    operations.poll.assert_called_once_with(PollSettings(command=("producer with spaces", "--title", "a; $(literal)")))
+
+
+@pytest.mark.parametrize("arguments", [[], ["--image", "card.png", "--", "producer"]])
+def test_poll_when_source_ambiguous_or_missing_returns_usage_error(arguments: list[str]) -> None:
+    result = CliRunner().invoke(poll, ["--state", "state", *arguments])
+
+    assert result.exit_code == 2
 
 
 def test_upload_when_device_selected_calls_workflow_with_settings() -> None:
@@ -47,14 +65,14 @@ def test_watch_when_options_selected_calls_watcher_with_settings() -> None:
         [
             "--state",
             "state",
-            "--map",
-            "map.toml",
-            "--policy",
-            "policy.toml",
             "--device",
             "test sign",
             "--interval",
             "7",
+            "--",
+            "producer with spaces",
+            "--caption",
+            "example image",
         ],
         obj=watcher,
         catch_exceptions=False,
@@ -62,7 +80,7 @@ def test_watch_when_options_selected_calls_watcher_with_settings() -> None:
 
     watcher.run.assert_called_once_with(
         WatchSettings(
-            poll=PollSettings(map_path=Path("map.toml"), policy_path=Path("policy.toml")),
+            poll=PollSettings(command=("producer with spaces", "--caption", "example image")),
             upload=UploadSettings(device="test sign"),
             interval=7,
         )
@@ -73,7 +91,7 @@ def test_watch_when_interval_omitted_calls_watcher_with_default() -> None:
     watcher = Mock(spec=Watcher)
 
     CliRunner().invoke(
-        watch, ["--state", "state", "--map", "map.toml", "--device", "test sign"], obj=watcher, catch_exceptions=False
+        watch, ["--state", "state", "--device", "test sign", "--", "producer"], obj=watcher, catch_exceptions=False
     )
 
     assert watcher.run.call_args.args[0].interval == 300
@@ -84,7 +102,7 @@ def test_watch_when_interval_invalid_calls_no_watcher(interval: str) -> None:
     watcher = Mock(spec=Watcher)
 
     CliRunner().invoke(
-        watch, ["--state", "state", "--map", "map.toml", "--device", "test sign", "--interval", interval], obj=watcher
+        watch, ["--state", "state", "--device", "test sign", "--interval", interval, "--", "producer"], obj=watcher
     )
 
     watcher.run.assert_not_called()
@@ -111,10 +129,10 @@ def test_command_when_operation_fails_returns_diagnostic_on_stderr(command: clic
     operations.upload.side_effect = OSError("operation failed")
     watcher = Mock(spec=Watcher, **{"run.side_effect": OSError("operation failed")})
     args = ["--state", "state"]
-    if command in (poll, watch):
-        args += ["--map", "map.toml"]
     if command in (upload, watch):
         args += ["--device", "test sign"]
+    if command in (poll, watch):
+        args += ["--", "producer"]
 
     result = CliRunner().invoke(command, args, obj=watcher if command is watch else operations)
 
@@ -142,12 +160,12 @@ def test_mysign_when_workflow_poll_requested_calls_poller() -> None:
 
     CliRunner().invoke(
         mysign,
-        ["workflow", "poll", "--state", "state", "--map", "map.toml"],
+        ["workflow", "poll", "--state", "state", "--image", "-"],
         obj=operations,
         catch_exceptions=False,
     )
 
-    operations.poll.assert_called_once_with(PollSettings(map_path=Path("map.toml")))
+    operations.poll.assert_called_once_with(PollSettings(image_path=Path("-")))
 
 
 @pytest.mark.parametrize("error", [None, KeyboardInterrupt(), SystemExit(143)])

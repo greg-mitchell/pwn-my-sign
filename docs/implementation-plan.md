@@ -74,6 +74,8 @@ until the timeout. The same regression now passes with output emitted from the d
 
 ## Workflow acceptance
 
+- Poll/watch use explicit image producers with PNG stdout and zero-exit success; no provider settings live in workflows.
+  One-shot polling also accepts PNG files/stdin. Invalid images and unsuccessful producers preserve pending state.
 - Publish complete pending images using a temporary file beside the destination and an atomic rename.
 - Preserve the previous pending image on fetch, selection, or render failure.
 - Snapshot pending before an upload; advance last-sent only to that snapshot after successful transfer calls.
@@ -91,7 +93,10 @@ until the timeout. The same regression now passes with output emitted from the d
 Validation so far: live foreground polling selected the healthy private card, unchanged polling preserved pending,
 foreground upload succeeded, and the user confirmed the card on the physical display. A repeated upload skipped transfer.
 The Python migration has offline behavioral coverage for publication, snapshots, locking, retries, terminal input,
-and interruption cleanup. Live foreground validation above predates the migration; revalidation remains pending.
+and interruption cleanup. Producer tests inject process creation and signals without spawning children or waiting.
+Real-process offline smoke checks verified producer capture, stdin, unchanged-file preservation, failed or invalid
+output preservation, watch EOF, and SIGTERM cleanup with child reaping and lock release.
+Live device validation above predates the migration; hardware revalidation remains pending.
 The systemd, cron, and launchd installation recipes remain untested;
 no service or scheduled job was installed during validation.
 

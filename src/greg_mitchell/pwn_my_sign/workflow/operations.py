@@ -2,7 +2,7 @@ from collections.abc import Callable
 
 from greg_mitchell.pwn_my_sign.workflow.models import PollSettings, UploadSettings, WorkflowKind
 from greg_mitchell.pwn_my_sign.workflow.sender import SnapshotSender
-from greg_mitchell.pwn_my_sign.workflow.source import StatusImageSource
+from greg_mitchell.pwn_my_sign.workflow.source import ImageSource
 from greg_mitchell.pwn_my_sign.workflow.state import WorkflowState
 
 
@@ -12,7 +12,7 @@ class WorkflowOperations:
     def __init__(
         self,
         state: WorkflowState,
-        source: StatusImageSource,
+        source: ImageSource,
         sender: SnapshotSender,
         report: Callable[[str], None],
     ) -> None:

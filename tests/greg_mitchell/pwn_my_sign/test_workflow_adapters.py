@@ -6,90 +6,75 @@ from unittest.mock import ANY, Mock
 import pytest
 
 from greg_mitchell.pwn_my_sign.device.operations import DeviceOperations
-from greg_mitchell.pwn_my_sign.github.source import GitHubSource
-from greg_mitchell.pwn_my_sign.images.selection import ImageSelector
 from greg_mitchell.pwn_my_sign.workflow.models import PollSettings, UploadSettings
+from greg_mitchell.pwn_my_sign.workflow.producer import CommandProducer, ProducerError
 from greg_mitchell.pwn_my_sign.workflow.sender import SnapshotSender
-from greg_mitchell.pwn_my_sign.workflow.source import StatusImageSource
+from greg_mitchell.pwn_my_sign.workflow.source import ImageSource
 from greg_mitchell.pwn_my_sign.workflow.terminal import InputResult, TerminalInput
 
 
 @pytest.fixture
-def source() -> Mock:
-    source = Mock(spec=GitHubSource)
-    with Path("tests/fixtures/github/healthy.json").open("rb") as stream:
-        source.fetch.return_value = GitHubSource().read(stream)
-    return source
+def png() -> bytes:
+    return Path("tests/fixtures/cards/title-only.png").read_bytes()
 
 
 @pytest.fixture
-def selector() -> Mock:
-    return Mock(spec=ImageSelector, **{"select.return_value": b"selected PNG"})
+def producer(png: bytes) -> Mock:
+    return Mock(spec=CommandProducer, **{"run.return_value": png})
 
 
-def test_image_when_healthy_returns_selected_image(source: Mock, selector: Mock) -> None:
-    result = StatusImageSource(source, selector).image(PollSettings(map_path=Path("map.toml")))
+def test_image_when_producer_succeeds_returns_original_png(producer: Mock, png: bytes) -> None:
+    result = ImageSource(producer, BytesIO()).image(PollSettings(command=("producer",)))
 
-    assert result == b"selected PNG"
-
-
-def test_image_when_fetching_calls_source_once(source: Mock, selector: Mock) -> None:
-    StatusImageSource(source, selector).image(PollSettings(map_path=Path("map.toml")))
-
-    source.fetch.assert_called_once_with()
+    assert result == png
 
 
-def test_image_when_policy_selected_calls_selector_with_interpreted_token(
-    source: Mock, selector: Mock, tmp_path: Path
-) -> None:
-    settings = PollSettings(map_path=tmp_path / "map with spaces.toml", policy_path=Path("data/github-actions.toml"))
-    observed: list[tuple[Path, bytes]] = []
+def test_image_when_producer_selected_calls_producer_with_arguments(producer: Mock) -> None:
+    ImageSource(producer, BytesIO()).image(PollSettings(command=("producer", "--title", "example image")))
 
-    def select(map_path: Path, stream: BytesIO) -> bytes:
-        observed.append((map_path, stream.read()))
-        return b"selected PNG"
-
-    selector.select.side_effect = select
-
-    StatusImageSource(source, selector).image(settings)
-
-    assert observed == [(settings.map_path, b"ok\n")]
+    producer.run.assert_called_once_with(("producer", "--title", "example image"))
 
 
-def test_image_when_policy_invalid_calls_no_source(source: Mock, selector: Mock, tmp_path: Path) -> None:
-    policy = tmp_path / "invalid.toml"
-    policy.write_text('mode = "unknown"')
+def test_image_when_file_selected_returns_original_png(producer: Mock, png: bytes, tmp_path: Path) -> None:
+    path = tmp_path / "image with spaces.png"
+    path.write_bytes(png)
+
+    result = ImageSource(producer, BytesIO()).image(PollSettings(image_path=path))
+
+    assert result == png
+
+
+def test_image_when_stdin_selected_returns_original_png(producer: Mock, png: bytes) -> None:
+    result = ImageSource(producer, BytesIO(png)).image(PollSettings(image_path=Path("-")))
+
+    assert result == png
+
+
+def test_image_when_stdin_selected_calls_no_producer(producer: Mock, png: bytes) -> None:
+    ImageSource(producer, BytesIO(png)).image(PollSettings(image_path=Path("-")))
+
+    producer.run.assert_not_called()
+
+
+@pytest.mark.parametrize("error", [OSError("not executable"), ProducerError("exit status 1")])
+def test_image_when_producer_fails_raises_source_error(producer: Mock, error: Exception) -> None:
+    producer.run.side_effect = error
+
+    with pytest.raises(type(error), match=str(error)):
+        ImageSource(producer, BytesIO()).image(PollSettings(command=("producer",)))
+
+
+@pytest.mark.parametrize("data", [b"", b"partial PNG", b"diagnostic text"])
+def test_image_when_producer_output_invalid_raises_value_error(producer: Mock, data: bytes) -> None:
+    producer.run.return_value = data
 
     with pytest.raises(ValueError):
-        StatusImageSource(source, selector).image(PollSettings(map_path=Path("map.toml"), policy_path=policy))
-
-    source.fetch.assert_not_called()
+        ImageSource(producer, BytesIO()).image(PollSettings(command=("producer",)))
 
 
-def test_image_when_fetch_fails_calls_no_selector(source: Mock, selector: Mock) -> None:
-    source.fetch.side_effect = OSError("fetch failed")
-
-    with pytest.raises(OSError, match="fetch failed"):
-        StatusImageSource(source, selector).image(PollSettings(map_path=Path("map.toml")))
-
-    selector.select.assert_not_called()
-
-
-def test_image_when_selection_fails_raises_value_error(source: Mock, selector: Mock) -> None:
-    selector.select.side_effect = ValueError("no matching image")
-
-    with pytest.raises(ValueError, match="no matching image"):
-        StatusImageSource(source, selector).image(PollSettings(map_path=Path("map.toml")))
-
-
-def test_image_when_composing_real_selector_returns_original_png(source: Mock, tmp_path: Path) -> None:
-    image = Path("tests/fixtures/cards/title-only.png").read_bytes()
-    (tmp_path / "card.png").write_bytes(image)
-    (tmp_path / "map.toml").write_text('[images]\nnone = "card.png"\n')
-
-    result = StatusImageSource(source, ImageSelector()).image(PollSettings(map_path=tmp_path / "map.toml"))
-
-    assert result == image
+def test_image_when_file_missing_raises_os_error(producer: Mock, tmp_path: Path) -> None:
+    with pytest.raises(FileNotFoundError):
+        ImageSource(producer, BytesIO()).image(PollSettings(image_path=tmp_path / "missing.png"))
 
 
 def test_send_when_snapshot_selected_calls_device_uploader_with_defaults() -> None:

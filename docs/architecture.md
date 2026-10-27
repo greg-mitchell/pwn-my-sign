@@ -14,6 +14,7 @@ flowchart LR
     source[Source adapter] -->|status code| selector[Image selector]
     renderer[Image renderer] -->|assets| selector
     selector -->|PNG| workflow[Python workflow]
+    producer[Any image producer] -->|PNG| workflow
     workflow -->|image snapshot| sender[Device sender]
     sender -->|BLE| sign[Sign]
 ```
@@ -29,7 +30,9 @@ Indicator policies accept no service settings. The [static Actions policy](../da
 example, selected only by its explicit path. No policy is discovered from global files or the environment.
 
 The `mysign workflow` group delegates comparisons, persistence, locks, and foreground reminders to focused modules
-under `src`. Workflows compose the existing source, selector, and sender in process with injected dependencies.
+under `src`. Workflows accept complete PNG bytes from arbitrary producer commands or one-shot file/stdin inputs.
+They own no provider policy or image selection. Producers can compose sources, selectors, and renderers externally;
+device sending remains in process with injected dependencies.
 External scheduling belongs to systemd, cron, or launchd; commands do not embed a job manager.
 Python and testing conventions are defined in [the contributor guidelines](../AGENTS.md).
 
@@ -56,6 +59,14 @@ Python and testing conventions are defined in [the contributor guidelines](../AG
 
 ## Workflow state
 
+`workflow poll` accepts either `--image FILE` (`-` for stdin) or an explicit producer command after `--`.
+`workflow watch` requires a repeatable producer command. The producer emits a static 1280 x 720 PNG on stdout,
+logs on inherited stderr, and exits zero; stdin is `/dev/null`. Arguments are passed without an implicit shell.
+Nonzero exit discards all producer output. Successful output is validated completely before any state changes.
+Commands that compose pipelines must propagate upstream failures themselves. One-shot stdin cannot carry exit status.
+Interruption terminates and reaps the producer process group before releasing locks, escalating to SIGKILL after
+a five-second grace period. No producer-specific retry loop is embedded; the watcher retries at its normal interval.
+
 Keep workflow artifacts in an explicitly selected state directory:
 
 | Artifact | Meaning |
@@ -75,7 +86,7 @@ A source that recovers before upload may select the already-sent image, making a
 Allow only one poller and one uploader per workflow/device, using scheduler supervision or Unix locks. All invocations
 for the same device share a state directory; locks cannot coordinate separate directories.
 Failed polls preserve the last known desired image, which remains available for manual upload without an age gate.
-Scheduling only polls; uploads remain foreground actions. The [README workflow recipes](../README.md#github-workflow)
+Scheduling only polls; uploads remain foreground actions. The [README workflow recipes](../README.md#image-workflows)
 apply these contracts.
 
 ## Button prompts and desktop integration

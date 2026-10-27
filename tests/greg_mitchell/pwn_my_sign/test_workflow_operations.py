@@ -8,13 +8,13 @@ import pytest
 from greg_mitchell.pwn_my_sign.workflow.models import PollSettings, UploadSettings
 from greg_mitchell.pwn_my_sign.workflow.operations import WorkflowOperations
 from greg_mitchell.pwn_my_sign.workflow.sender import SnapshotSender
-from greg_mitchell.pwn_my_sign.workflow.source import StatusImageSource
+from greg_mitchell.pwn_my_sign.workflow.source import ImageSource
 from greg_mitchell.pwn_my_sign.workflow.state import WorkflowState
 
 
 @pytest.fixture
 def source() -> Mock:
-    return Mock(spec=StatusImageSource, **{"image.return_value": b"desired image"})
+    return Mock(spec=ImageSource, **{"image.return_value": b"desired image"})
 
 
 @pytest.fixture
@@ -33,13 +33,13 @@ def workflow(tmp_path: Path, source: Mock, sender: Mock, report: Mock) -> Workfl
 
 
 def test_poll_when_image_selected_returns_published_image(workflow: WorkflowOperations) -> None:
-    workflow.poll(PollSettings(map_path=Path("map.toml")))
+    workflow.poll(PollSettings(command=("produce-image",)))
 
     assert workflow.state.pending() == b"desired image"
 
 
 def test_poll_when_configured_calls_source_with_settings(workflow: WorkflowOperations, source: Mock) -> None:
-    settings = PollSettings(map_path=Path("map with spaces.toml"), policy_path=Path("policy.toml"))
+    settings = PollSettings(command=("producer with spaces", "--title", "example image"))
 
     workflow.poll(settings)
 
@@ -54,7 +54,7 @@ def test_poll_when_source_fails_returns_previous_pending(
     source.image.side_effect = error
 
     with pytest.raises(type(error), match=str(error)):
-        workflow.poll(PollSettings(map_path=Path("map.toml")))
+        workflow.poll(PollSettings(command=("produce-image",)))
 
     assert workflow.state.pending() == b"previous image"
 
@@ -63,7 +63,7 @@ def test_poll_when_locked_calls_no_source(workflow: WorkflowOperations, source: 
     (tmp_path / "poll.lock").mkdir()
 
     with pytest.raises(OSError, match="Cannot acquire"):
-        workflow.poll(PollSettings(map_path=Path("map.toml")))
+        workflow.poll(PollSettings(command=("produce-image",)))
 
     source.image.assert_not_called()
 
@@ -181,4 +181,4 @@ def test_poll_when_publication_fails_raises_os_error(source: Mock, sender: Mock,
     workflow = WorkflowOperations(state, source, sender, report)
 
     with pytest.raises(OSError, match="publication failed"):
-        workflow.poll(PollSettings(map_path=Path("map.toml")))
+        workflow.poll(PollSettings(command=("produce-image",)))
