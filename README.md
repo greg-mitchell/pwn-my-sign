@@ -4,11 +4,11 @@ Small tools for putting custom content on a Dory e-paper sign from a computer.
 I built this to show service health from a cron job, motivated by recent frequent Github outages.
 
 This is an independent, unofficial interoperability project. It is not affiliated with or endorsed by Dory AS.
-Use it with signs you own or are authorized to manage. Product names identify compatibility.
+Use it with signs you own or are authorized to manage. Product names only identify compatibility.
 
 **Working:** GitHub status codes, card building, PNG selection, terminal reminders, and image uploads over Bluetooth LE.
-**WIP:** desktop reminders.
-The sign currently needs a physical button press for each upload.
+
+**Planned:** desktop reminders, hands-off uploads.
 
 ## Setup
 
@@ -19,15 +19,11 @@ uv sync --locked
 ```
 
 Python 3.13.6 or later is required. `uv` creates the environment and installs the `mysign` executable.
-Run `uv run mysign --help` to discover its domain groups and commands.
-This replaces the earlier `dory`, `dory-send`, and `dory-test-card` executables; no compatibility aliases are installed.
-The project follows the namespace package and development tooling used in
-[greg-mitchell/portfolio](https://github.com/greg-mitchell/portfolio).
 
 ## Upload a custom image
 
 Prepare an image exactly **1280 × 720 pixels**. The sender converts it to grayscale and 16 levels without resizing or cropping.
-For the observed sign, keep text at least **32 pixels** from each edge; artwork and backgrounds can fill the screen.
+The content-safe area appears to be **32 pixels** from each edge; artwork and backgrounds can fill the screen.
 
 ### Find the device name or UUID
 
@@ -37,11 +33,10 @@ Close the Dory app on your phone, then discover the sign:
 uv run mysign device scan
 ```
 
-Allow Bluetooth access and press the sign's physical button when prompted.
-Results stream immediately as devices advertise; the scan runs for 30 seconds by default (`--timeout SECONDS`).
-By default, only devices advertising the sign's BLE service are shown. Use `uv run mysign device scan --all` to show
-all nearby BLE devices if the sign does not appear. Repeated advertisements are suppressed; a later name update
-prints a new line. Press Ctrl-C to stop early.
+- Allow Bluetooth access and press the sign's physical button when prompted.
+- Results stream immediately as devices advertise
+- The scan runs for 30 seconds by default (or `--timeout SECONDS`).
+- Only devices advertising the sign's BLE service are shown by default. Use `--all` if that doesn't show your sign.
 
 Each result labels the identifier to copy into the sender's `--device` option:
 
@@ -50,7 +45,8 @@ Each result labels the identifier to copy into the sender's `--device` option:
 ```
 
 Use that device ID or the exact advertised name. On macOS, the ID is a UUID local to the scanning computer.
-The `MAC-…` label printed on a diagnostic test card identifies that image, not the Bluetooth device.
+
+### Send an image
 
 ```sh
 export MYSIGN_DEVICE='your-sign-name-or-macos-uuid'
@@ -59,14 +55,11 @@ uv run mysign device send --device "$MYSIGN_DEVICE" --image image.png
 
 The sender prints **“Waiting for the selected sign; press its button now.”** to stderr.
 Press the physical button once, then allow roughly two minutes for transfer and refresh.
-The sender waits up to 60 seconds to find the selected sign; change this with `--timeout`.
 
-A zero exit status means the transfer calls completed. Check the display: the captured protocol provides no observed
-application acknowledgement that the intended image is physically visible.
-
-Captured headerless payloads can be replayed using `--frame` instead of `--image`.
-Use `--image -` to read one static 1280 × 720 PNG from stdin. The sender reads and validates it completely before
-printing the button prompt or scanning Bluetooth; malformed input produces an error on stderr and no transfer.
+- A zero exit status means the transfer calls completed. Check the display. The protocol doesn't ack completion.
+- Captured headerless payloads can be replayed using `--frame` instead of `--image`.
+- Use `--image -` to read one static 1280 × 720 PNG from stdin.
+- The `send` command validates PNG data first, before connecting to Bluetooth.
 
 ```sh
 printf '%s\n' ok | uv run mysign image match --map private/images.toml \
@@ -75,7 +68,7 @@ printf '%s\n' ok | uv run mysign image match --map private/images.toml \
 
 For repeated updates, prepare and snapshot pending images using the [image workflow](#image-workflows).
 
-## Build a recognizable test image
+## Build a test image
 
 ```sh
 uv run mysign image test-card --output private/mac-test.png
@@ -87,7 +80,7 @@ The corner labels probe the image edges, where the frame can hide some pixels.
 The diagnostic currently defaults to a macOS Arial font; `--font` accepts a different TrueType font path.
 Use the static card builder below for artwork and reusable layout templates.
 
-## Build a static display card
+## Build a custom card
 
 Supply your own artwork and TrueType or OpenType font. Keep these inputs and finished cards in ignored `private/`:
 
@@ -97,43 +90,43 @@ uv run mysign image make --layout data/card-layout.toml --artwork private/artwor
   --output private/cards/ok.png
 ```
 
-Create the output directory first. Omit `--output` to emit PNG bytes on stdout.
-The deterministic 1280 × 720 grayscale output uses an explicitly selected TOML layout template.
-The supplied [split layout](data/card-layout.toml) contains the full artwork on the left and wraps optional title, status,
-and caption on the right. It uses 56-, 40-, and 32-pixel fonts and centers the complete text stack vertically beside the art.
-Copy and edit it to choose box positions, sizes, typography, spacing, and vertical alignment (`top`, `center`, or `bottom`).
-Layout boxes must stay inside the canvas and must not overlap. Text remains aligned left within its box.
-The [artwork-only layout](data/artwork-layout.toml) uses the full canvas without a text region.
-The split template places text 32 pixels from the edges, following the observed device's
-[calibration recommendation](docs/display-calibration.md#device-guidance); this is advisory and artwork may reach any edge.
-Omit any text options you do not need. Blank text takes no space; `--font` is required only when visible text is supplied.
-Explicit line breaks are preserved; words or text blocks that do not fit fail rather than being clipped or shrunk.
-Pillow handles pixel-width wrapping and multiline baselines; trailing invisible whitespace can be discarded.
-Transparent artwork is placed on white, photo orientation is honored, and animated artwork is rejected.
-Rendering completes before output is written, so invalid inputs preserve an existing output file.
+- Create the output directory first. 
+- Omit `--output` to emit PNG bytes on stdout.
+- Layouts are defined in TOML templates, and render to 1280 x 720 grayscale.
+  - Layout boxes must stay inside the canvas and must not overlap. Text remains aligned left within its box.
+- The supplied [split layout](data/card-layout.toml) contains the full artwork on the left and wraps optional title, status,
+  and caption on the right. 
+  - It uses 56-, 40-, and 32-pixel fonts and centers the complete text stack vertically beside the art.
+  - Copy and edit it to choose box positions, sizes, typography, spacing, and vertical alignment (`top`, `center`, or `bottom`).
+  - Omit any text options you do not need. Blank text takes no space; `--font` is required only when visible text is supplied.
+  - Explicit line breaks are preserved; words or text blocks that do not fit fail rather than being clipped or shrunk.
+- The [artwork-only layout](data/artwork-layout.toml) uses the full canvas without a text region.
+- The split template places text 32 pixels from the edges, following the observed device's
+  [calibration recommendation](docs/display-calibration.md#device-guidance); this is advisory and artwork may reach any edge.
+- Transparent artwork is placed on white, photo orientation is honored, and animated artwork is rejected.
+- Rendering completes before output is written, so invalid inputs preserve an existing output file.
+
 See [synthetic rendered examples](tests/fixtures/README.md#rendered-card-examples) for previews and regeneration instructions.
 
 ## Composable tools
 
-These are the intended interfaces. Only the rows marked **working** are installed today.
-
-| Command | Input | Output | Status |
+| Command | Input | Output |
 | --- | --- | --- | --- |
-| `mysign github status` | GitHub's summary endpoint or saved JSON | One status code on stdout | Working |
-| `mysign image match --map images.toml` | One code on stdin | Selected PNG bytes on stdout | Working |
-| `mysign image make` | Explicit layout/artwork, optional text and font | PNG bytes or named file | Working |
-| `mysign device send` | `--image FILE` or `--frame FILE` | Diagnostics on stderr, exit status | Working |
-| `mysign device send --image -` | PNG on stdin | Diagnostics on stderr, exit status | Working |
-| `mysign image test-card` | Output/font options | Diagnostic PNG and ID metadata | Working |
-| `mysign workflow poll` | PNG file/stdin or producer command | Changed `pending.png` in a state directory | Working |
-| `mysign workflow upload` | Pending image and device | Transfer and recorded snapshot | Working |
-| `mysign workflow watch` | Producer command, device, interval | Foreground reminders and explicit uploads | Working |
+| `mysign github status` | GitHub's summary endpoint or saved JSON | One status code on stdout |
+| `mysign image match --map images.toml` | One code on stdin | Selected PNG bytes on stdout |
+| `mysign image make` | Explicit layout/artwork, optional text and font | PNG bytes or named file 
+| `mysign device send` | `--image FILE` or `--frame FILE` | Diagnostics on stderr, exit status |
+| `mysign device send --image -` | PNG on stdin | Diagnostics on stderr, exit status |
+| `mysign image test-card` | Output/font options | Diagnostic PNG and ID metadata |
+| `mysign workflow poll` | PNG file/stdin or producer command | Changed `pending.png` in a state directory |
+| `mysign workflow upload` | Pending image and device | Transfer and recorded snapshot |
+| `mysign workflow watch` | Producer command, device, interval | Foreground reminders and explicit uploads |
 
 See [architecture](docs/architecture.md) for command boundaries, stream contracts, and workflow invariants.
 
 ## GitHub workflow
 
-### Inspect the source now
+### View and match Github Status
 
 ```sh
 uv run mysign github status
@@ -150,8 +143,8 @@ The default prints [GitHub's indicator](https://www.githubstatus.com/api):
 | `major` | Major impact. |
 | `critical` | Critical impact. |
 
-The [supplied policy](data/github-actions.toml) prioritizes GitHub Actions and uses these outputs.
-Service policies explicitly set their mode, priority services, outage threshold, and every output code:
+The [supplied policy](data/github-actions.toml) maps the overall status + Github Actions status into a
+custom code.
 
 | Code | Meaning |
 | --- | --- |
@@ -166,6 +159,8 @@ See the [policy settings](src/greg_mitchell/pwn_my_sign/github/policy.py),
 
 ### Select a private static card
 
+`mysign image match` implements a general code to image matcher.
+
 Prepare one static 1280 × 720 PNG per code and save a map such as `private/images.toml`:
 
 ```toml
@@ -176,10 +171,9 @@ actions-outage = "cards/actions-outage.png"
 widespread-outage = "cards/widespread-outage.png"
 ```
 
-Paths resolve relative to the map, so these cards live under `private/cards/`. Absolute paths also work.
-Tokens match exactly, including case; stdin accepts one token with an optional LF or CRLF terminator.
-The selector validates the selected PNG completely before emitting its original bytes. Animated PNGs, wrong dimensions,
-unknown codes, invalid maps, and unreadable or damaged images fail with no image output. Unselected assets are not read.
+- Paths resolve relative to the map, so these cards live under `private/cards/`. Absolute paths also work.
+- Tokens must match exactly, after stripping an optional LF or CRLF terminator.
+- It validates and copies the PNG to stdout.
 
 ```sh
 uv run mysign github status --policy data/github-actions.toml \
@@ -188,40 +182,41 @@ uv run mysign github status --policy data/github-actions.toml \
 
 ## Image workflows
 
-Workflows accept images from any source. A producer command writes one complete static 1280 × 720 PNG to stdout,
-writes diagnostics to stderr, and exits zero on success. The workflow validates the image before publication.
-The producer receives `/dev/null` as stdin so the watcher's terminal remains available for Enter-to-upload prompts.
+The image workflow stitches together an **image producer** with a **poller** which detects changes, and a
+**sender** which manages exactly-one writer sending to the sign.
 
-### Prepare only changed images
+### Poll: prepare the image for sending
 
-Run the one-shot workflow after `uv sync`. Select a state directory for this device and use
-that same directory for every poller and uploader targeting it:
+The poller detects whether the provided image differs from the current image on the sign, and prepares the new
+input for sending if it differs. Some canned options:
 
 ```bash
+# workflow state, with the image to send
 state="${XDG_STATE_HOME:-$HOME/.local/state}/pwn-my-sign/display"
+
+# read an image from file
 uv run mysign workflow poll --state "$state" --image private/selected.png
+
+# read an image from stdin
 cat private/selected.png | uv run mysign workflow poll --state "$state" --image -
-# Or invoke a producer directly, checking its exit status before publication:
+
+# or invoke an image producer command
 uv run mysign workflow poll --state "$state" -- private/produce-image
 ```
 
-With an activated environment, use `mysign` instead of `uv run mysign`. Choose either `--image FILE` (`-` for stdin)
-or a producer command after `--`. Arguments are passed literally, without an implicit shell; paths resolve from the
-current working directory. A failed producer's output is discarded, even when it contains a valid PNG.
-The poller publishes a complete `pending.png` by atomic rename only when bytes change.
-Producer, read, or validation failure preserves the previous image and returns failure.
+- Image input options: `--image FILE`, `--image -` for stdin, or a producer command after `--`.
+  - Arguments are passed literally, without an implicit shell
+  - paths resolve from the current working directory.
+  - A failed producer's output is discarded, even when it contains a valid PNG.
+- The poller publishes a complete `pending.png` by atomic rename only when bytes change.
+- Producer, read, or validation failure preserves the previous image and returns failure.
+- When making a pipeline in bash, always set `-o pipefail`.
 
-For producer pipelines, invoke a shell explicitly and propagate every stage's failure (for example with Bash's
-`-o pipefail`). A consumer reading `--image -` cannot observe upstream exit codes; use a producer command when those
-exit codes must gate publication.
-
-The retained image is the last known desired state, even after failed polls. It may be stale; inspect polling errors and
-the source before manually sending it. There is no age gate, automatic upload, or healthy fallback.
 The image artifacts and publication rules are defined in [workflow state](docs/architecture.md#workflow-state).
 
 ### Upload the pending image
 
-Once `pending.png` exists, run the uploader in the foreground with `MYSIGN_DEVICE` set:
+Once `pending.png` exists, run the uploader:
 
 ```bash
 uv run mysign workflow upload --state "$state" --device "$MYSIGN_DEVICE"
@@ -230,11 +225,11 @@ uv run mysign workflow upload --state "$state" --device "$MYSIGN_DEVICE"
 The uploader snapshots pending, skips an already-sent image, and asks the sender to validate that snapshot before its
 button prompt and Bluetooth scan. Only successful transfer calls advance `last-sent.png` to the snapshot.
 A newer pending image published during the transfer remains available for the next upload.
+
 The snapshot follows the [workflow state contract](docs/architecture.md#workflow-state).
 
 ### Watch in a terminal
 
-Use the name or UUID from [device discovery](#find-the-device-name-or-uuid) for `MYSIGN_DEVICE`.
 For a simple foreground alternative to installing a scheduled job, leave this running in a terminal:
 
 ```bash
@@ -242,19 +237,14 @@ uv run mysign workflow watch --state "$state" --device "$MYSIGN_DEVICE" \
   --interval 300 -- private/produce-image
 ```
 
+This composes the above tools into a poll loop.
+
 The loop runs the producer immediately and repeats it after each interval. When pending differs from last-sent,
-it writes a terminal bell and offers Enter to upload.
-Press Enter, then press the sign's button when the uploader prompts. Upload validation and transfer use the existing
-one-shot uploader. It sends a snapshot; updates published during transfer remain pending for the next run.
+it writes a terminal bell and offers Enter to upload. Press Enter, then press the sign's button when the uploader prompts.
 
 If you leave the prompt alone, it polls again after the interval and reminds you while an update remains unsent.
-After an upload, an already-sent result, or an error, it waits the interval before polling again.
-The default interval is 300 seconds; supply a positive whole number. Failed polls preserve pending and show an error,
-without offering the retained image for upload that iteration. Ctrl-C stops the loop; EOF at the reminder prompt ends it.
-Bell sound, visual flashing, and background-tab badges depend on your terminal's bell settings.
-This loop installs no service or notification helper. Keep this terminal's stdin attached so it can receive Enter.
 
-For example, the GitHub source and image selector compose as one producer without any GitHub settings in the workflow:
+For example, the GitHub source and image selector compose as one producer:
 
 ```sh
 uv run mysign workflow watch --state "$state" --device "$MYSIGN_DEVICE" --interval 300 \
@@ -264,25 +254,14 @@ uv run mysign workflow watch --state "$state" --device "$MYSIGN_DEVICE" --interv
   '
 ```
 
-Omit `--policy` from the producer to use GitHub's default indicator and a matching map. The producer can instead
-be any executable that emits the PNG contract, including a renderer or a program unrelated to GitHub.
-
 ### Locks and recovery
 
 Each operation creates a separate lock directory (`poll.lock`, `upload.lock`, or `watch.lock`) in the selected directory.
-An overlapping invocation fails; polling can continue while an upload is in progress.
-Use one state directory per device: separate directories cannot prevent simultaneous transfers to the same sign.
-Normal exit and handled interruption remove temporary files and the operation's lock. Interruption terminates the
-active producer's process group and reaps it before releasing locks; after five seconds it escalates to SIGKILL.
+An overlapping invocation fails; polling can continue while an upload is in progress. Use one state directory per device.
 
 A crash or forced kill can leave a lock behind. Read its `pid` file, confirm that the process and any transfer child have
 stopped, then remove that lock's `pid` file and empty directory. Do not remove a lock belonging to an active process.
 An orphaned `.pending.*` or `.last-sent.*` temporary file may be removed after confirming no workflow is using it.
-
-The `mysign workflow` commands replace the former workflow scripts. Update existing invocations and scheduler entries
-to use the checkout's `mysign` executable. Replace workflow `--map`/`--policy` options with an explicit producer;
-these remain options of `image match` and `github status`, respectively. The `--mysign` option has been removed.
-Existing `pending.png`, `last-sent.png`, and lock directories retain their format.
 
 ### Schedule polling
 
