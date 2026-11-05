@@ -16,9 +16,14 @@ Both directions use UTF-8 JSON records terminated by LF, with a maximum of **16 
 Every record carries `version: 1` and `type`. Python's frozen Pydantic models own serialization. Diagnostics belong
 only on stderr. Nullable output fields are emitted as `null`.
 
-The child uses one byte reader with its own line buffer, `select`, and `os.read`. It can consume multiple records
-from one read and split records across reads. Invalid and oversized input is diagnosed and discarded without becoming
-an action. Partial records at EOF are discarded. Positive receive deadlines still expire when invalid input continues.
+One reader thread uses buffered binary `readline` and feeds a bounded 64-record queue. The main thread validates
+records with Pydantic and waits through `Queue.get(timeout=...)`. Invalid and oversized input is diagnosed and
+discarded without becoming an action. Oversized lines are drained in bounded pieces; partial records at EOF are
+discarded. Positive receive deadlines still expire when invalid input continues, including already queued records.
+The worker owns a duplicated input descriptor and its own buffer, so a blocked read cannot hold Python's global
+stdin buffer lock during shutdown. macOS `kqueue` detects parent EOF before new polls independently of reader-thread
+scheduling. Queue shutdown releases a worker blocked on backpressure; a read still blocked at process exit ends with
+the child. Only framing runs in the background; workflow operations and Bluetooth remain on the main thread.
 Output is serialized completely before writing, then explicitly flushed; an oversized output is rejected before writing.
 Human menu text is limited and controls are replaced with spaces before JSON escaping.
 
@@ -94,6 +99,26 @@ asynchronously for the child to unwind.
 Poll immediately after startup, then wait the configured interval after a completed poll. Do not replay missed intervals.
 Poll and upload execute synchronously in the Python child; the native UI remains responsive. An explicit upload pauses
 polling. After an upload attempt, perform a fresh poll before offering another image.
+
+`desktop/machine.py` owns immutable workflow facts and a declarative table of allowed events, destination phases,
+ordered effects, and view publication. Its pure `transition(state, event)` returns a decision; the controller executes
+those effects and feeds their results back as events. Views are projections of workflow state, with revisions owned
+by the session solely for stale-action rejection. Device progress uses the same transitions.
+
+| Current phase | Event | Destination / work |
+| --- | --- | --- |
+| Starting, idle, or finished | Check or interval expiry | Checking; poll |
+| Checking | Unsent image | Stay checking; inspect reminder history and request notification if needed |
+| Checking | Reminder known or notification answered | Update available; remember only accepted submissions |
+| Checking | Already sent | Up to date; clear reminder history |
+| Checking | Poll failed | Poll failed; offer a retained unsent image if available |
+| Update available, or poll failed with retained image | Upload | Preparing upload; snapshot and upload |
+| Preparing upload | Validated button boundary | Waiting for button; require notification acknowledgment |
+| Waiting for button | Connected | Sending |
+| Upload in progress | Completed, skipped, or failed | Publish result; notify; check again |
+| Any phase | Presentation failure | Preserve workflow outcome; show and report error |
+
+Unlisted transitions do no work. Check and Upload cannot start overlapping work in busy phases.
 
 A successful poll compares complete pending bytes with last-sent. One accepted update notification per unsent fingerprint
 is retained in `desktop-reminder.json`, separate from the authoritative PNGs. Keep the view in nonactionable `checking`
