@@ -13,20 +13,17 @@ This reference defines the process wire contract; it does not alter image encodi
 
 ## Framing
 
-Both directions use UTF-8 JSON records terminated by LF, with a maximum of **16 KiB including the LF** per record.
-Every record carries `version: 1` and `type`. Python's frozen Pydantic models own serialization. Diagnostics belong
-only on stderr. Nullable output fields are emitted as `null`.
+1. Both directions use UTF-8 JSON records terminated by LF, with a maximum of **16 KiB including the LF** per record.
+2. Every record carries `version: 1` and `type`. Nullable output fields are emitted as `null`.
+3. A record takes effect only when complete and valid. Pipe reads may split or combine records; senders flush each record.
+4. Python diagnoses and discards malformed, unsupported, oversized, or incomplete-at-EOF input. Invalid records do not
+   extend a notification acknowledgment deadline.
+5. The native app treats malformed, unsupported, oversized, or incomplete controller output as a protocol failure and
+   stops the child. An incomplete final record is ignored during an intentional stop.
+6. Diagnostics belong only on stderr; stdout contains protocol records only.
 
-One reader thread uses buffered binary `readline` and feeds a bounded 64-record queue. The main thread validates
-records with Pydantic and waits through `Queue.get(timeout=...)`. Invalid and oversized input is diagnosed and
-discarded without becoming an action. Oversized lines are drained in bounded pieces; partial records at EOF are
-discarded. Positive receive deadlines still expire when invalid input continues, including already queued records.
-The worker owns a duplicated input descriptor and its own buffer, so a blocked read cannot hold Python's global
-stdin buffer lock during shutdown. macOS `kqueue` detects parent EOF before new polls independently of reader-thread
-scheduling. Queue shutdown releases a worker blocked on backpressure; a read still blocked at process exit ends with
-the child. Only framing runs in the background; workflow operations and Bluetooth remain on the main thread.
-Output is serialized completely before writing, then explicitly flushed; an oversized output is rejected before writing.
-Human menu text is limited and controls are replaced with spaces before JSON escaping.
+The schema implementations are [Python models](../src/greg_mitchell/pwn_my_sign/desktop/protocol.py) and
+[Swift records](../macos/Sources/SignDesktopCore/Protocol.swift).
 
 ## Python to native
 
@@ -99,6 +96,9 @@ asynchronously for the child to unwind.
 
 Keep the view in nonactionable `checking` while an update notification awaits acknowledgment, then emit
 `update_available` with any error context. Device callbacks supply phases; diagnostics are never protocol input.
+
+A newer accepted view ends the previous notification handshake. The native app releases its action gate and discards
+late notification callbacks for that request.
 
 Pending actions and notification acknowledgments belong to one child session. Discard them when that child exits;
 a replacement starts with a new session. EOF prevents the child from starting another poll, though an operation

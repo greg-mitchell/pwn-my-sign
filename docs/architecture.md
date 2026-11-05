@@ -17,23 +17,25 @@ flowchart LR
 
 | Component | Responsibility |
 | --- | --- |
-| Source adapter | Validate provider data and emit a stable status code; classification policy is an explicit input. |
+| Source adapter | Translate an external service into a status code. Currently [`mysign github status`](../README.md#view-and-match-github-status) adapts GitHub service health; classification policy is an explicit input. |
 | Selector / renderer | Map a code to an existing image, or construct an image from explicit artwork, layout, and text. |
 | Workflow | Validate desired images, compare and persist state, coordinate polling and manual uploads. |
 | Device sender | Validate and encode an image, prompt for button wake, and transfer over BLE. |
 | CLI | Parse arguments and delegate to domain operations with injected effects. |
 
-Leaf commands do one operation and exit. Terminal watch and the desktop controller compose those operations into
-foreground loops. External scheduling belongs to systemd, cron, or launchd; commands install no jobs.
+Leaf commands do one operation and exit. [`mysign workflow watch`](../README.md#watch-in-a-terminal) and
+[`mysign workflow desktop`](desktop-workflow.md) compose those operations into foreground loops. External scheduling
+belongs to systemd, cron, or launchd; commands install no jobs.
 
 ## Stream contracts
 
-1. Sources emit one status code and newline; selectors consume one code and emit the selected PNG's original bytes.
-2. Producers emit one complete static 1280 × 720 PNG, log to stderr, and exit zero. Workflows pass literal arguments
-   without an implicit shell. Producer-command mode observes exit status; piped image bytes cannot carry it.
-3. Validate complete inputs before publication, output, button prompts, or Bluetooth discovery. Invalid data never
+1. Source adapters emit one status code and newline; selectors consume one code and emit the selected PNG's bytes.
+2. Producers emit one complete static 1280 × 720 PNG, log to stderr, and exit zero.
+3. Workflows pass producer arguments literally, without an implicit shell.
+4. Producer-command mode checks exit status; piped image bytes cannot carry it.
+5. Validate complete inputs before publication, output, button prompts, or Bluetooth discovery. Invalid data never
    implies a healthy source or replaces a valid image.
-4. Data belongs on stdout; diagnostics, progress, and prompts belong on stderr. Nonzero exit indicates failure.
+6. Data belongs on stdout; diagnostics, progress, and prompts belong on stderr. Nonzero exit indicates failure.
 
 Command options and examples are in the [README](../README.md#composable-tools). Verified device behavior is in the
 [BLE protocol](protocol.md).
@@ -46,13 +48,14 @@ Command options and examples are in the [README](../README.md#composable-tools).
 | `last-sent.png` | Exact snapshot whose transfer calls last completed successfully. |
 
 1. Publish changed pending images atomically. Failed producers preserve the previous image.
-2. Snapshot pending before upload; skip when it matches last-sent. Advance last-sent only after successful transfer
-   calls. A newer pending image survives an older snapshot's transfer.
-3. Completion records transfer calls, not confirmation of the physical display.
-4. Use one state directory per sign, shared by every terminal and desktop invocation. Separate poll and upload locks
-   allow polling during a transfer while preventing overlapping instances of the same operation.
-5. Polling prepares images; uploading is an explicit foreground action. Failed polls retain the last desired image
-   for contextual manual upload. The terminal watcher waits for a successful poll before offering it again.
+2. Snapshot pending before upload; skip when it matches last-sent.
+3. Advance last-sent only after successful transfer calls. A newer pending image survives an older snapshot's transfer.
+4. Completion records transfer calls, not confirmation of the physical display.
+5. Use one state directory per sign, shared by every terminal and desktop invocation.
+6. Separate poll and upload locks allow polling during a transfer while preventing overlapping instances of either operation.
+7. Polling prepares images; uploading is an explicit foreground action.
+8. Failed polls retain the last desired image for contextual manual upload. The terminal watcher waits for a successful
+   poll before offering it again.
 
 Defaults, overrides, and lock recovery are documented in the [workflow guide](../README.md#image-workflows).
 
@@ -93,7 +96,8 @@ sequenceDiagram
     actor Person
     participant App as Native app
     participant Controller as Python controller
-    participant Workflow as Workflow / sender
+    participant Workflow as WorkflowOperations
+    participant Sender as Snapshot sender / device operations
     App->>Controller: Launch with explicit configuration
     Controller->>Workflow: Poll and compare image state
     opt Newly unsent image not already notified
@@ -101,22 +105,38 @@ sequenceDiagram
         App-->>Controller: Submission acknowledgment
     end
     Controller->>App: Actionable view
-    Person->>App: Upload
-    App->>Controller: Action with current view revision
-    Controller->>Workflow: Snapshot and validate
-    Workflow->>Controller: Waiting-for-button event
+    Person->>App: Choose Upload menu item
+    App->>Controller: upload action with current view revision
+    Controller->>Workflow: upload()
+    Workflow->>Workflow: Lock, snapshot pending, skip if already sent
+    Workflow->>Sender: Send snapshot
+    Sender->>Controller: Waiting-for-button callback
     Controller->>App: Button notification request
     App-->>Controller: Submission acknowledgment
-    Workflow->>Workflow: Discover, connect, transfer, record snapshot
+    Sender->>Sender: Discover, connect, transfer
+    Sender-->>Workflow: Transfer calls complete
+    Workflow->>Workflow: Record sent snapshot
+    Workflow-->>Controller: Completed outcome
     Controller->>App: Result view and notification request
     App-->>Controller: Submission acknowledgment
     Controller->>Workflow: Poll again
 ```
 
-1. Button-notification acknowledgment gates discovery. Denial, timeout, or EOF stops preparation; acknowledgment
-   establishes submission, not visible delivery. Later notification errors cannot undo a completed transfer.
-2. Remember an update notification only after accepted submission, once per unsent image. This reminder history is
-   separate from image state and clears when up to date.
+The diagram shows a successful upload of an unsent image. The terms refer to these contracts:
+
+| Term | Meaning / source of truth |
+| --- | --- |
+| Upload | The menu command to send the pending image. [`WorkflowOperations.upload`](../src/greg_mitchell/pwn_my_sign/workflow/operations.py) owns locking, snapshot comparison, and recording success; [`SnapshotSender`](../src/greg_mitchell/pwn_my_sign/workflow/sender.py) delegates transfer to device operations. |
+| Action | A native → Python JSON command (`upload` or `check`), defined by the [menu-action contract](desktop-protocol.md#menu-action). |
+| View revision | The sequence number of a changed menu-state record. Actions echo it so stale clicks are rejected; see [View](desktop-protocol.md#view). |
+| Reminder history | The last unsent image fingerprint whose update notification was accepted, persisted in `desktop-reminder.json` by [`ReminderStore`](../src/greg_mitchell/pwn_my_sign/desktop/reminders.py). It suppresses repeat reminders across polls and restarts; it does not mean the image was uploaded. |
+
+The controller calls the workflow for both polling and uploading so terminal and desktop commands share image and
+locking rules. Device callbacks let the controller supply the button notification during the workflow's upload.
+
+1. Button-notification acknowledgment gates discovery. It establishes submission, not visible delivery; see
+   [acknowledgments](desktop-protocol.md#acknowledgment) for failure behavior.
+2. Persist a reminder fingerprint only after accepted submission; clear it when the desired image is already sent.
 3. Poll immediately, then wait an interval after each completed check. Upload pauses polling; missed intervals are
    not replayed. Busy phases reject new workflow actions.
 4. Quit and sleep cancel the child and wait for cleanup. Wake starts a replacement only after the previous child exits.
