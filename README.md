@@ -201,21 +201,23 @@ validates arbitrary input before publication, and the device sender validates th
 
 ### Poll: prepare the image for sending
 
+Poll, upload, watch, and the desktop workflow default to
+`${XDG_STATE_HOME:-$HOME/.local/state}/pwn-my-sign/display`. Empty or relative `XDG_STATE_HOME` values use the home
+fallback. Pass `--state DIRECTORY` to terminal commands to override it; `~` expands and relative overrides resolve
+from the current directory. Use a separate state directory for each sign.
+
 The poller obtains and validates one desired image, then updates `pending.png` only when its bytes differ from the
 existing pending image. It does not contact the sign or compare against `last-sent.png`. Some input options:
 
 ```bash
-# workflow state, with the image to send
-state="${XDG_STATE_HOME:-$HOME/.local/state}/pwn-my-sign/display"
-
 # read an image from file
-uv run mysign workflow poll --state "$state" --image private/selected.png
+uv run mysign workflow poll --image private/selected.png
 
 # read an image from stdin
-cat private/selected.png | uv run mysign workflow poll --state "$state" --image -
+cat private/selected.png | uv run mysign workflow poll --image -
 
 # or invoke an image producer command
-uv run mysign workflow poll --state "$state" -- private/produce-image
+uv run mysign workflow poll -- private/produce-image
 ```
 
 - Image input options: `--image FILE`, `--image -` for stdin, or a producer command after `--`.
@@ -237,7 +239,7 @@ The image artifacts and publication rules are defined in [workflow state](docs/a
 Once `pending.png` exists, run the uploader:
 
 ```bash
-uv run mysign workflow upload --state "$state" --device "$MYSIGN_DEVICE"
+uv run mysign workflow upload --device "$MYSIGN_DEVICE"
 ```
 
 The uploader snapshots `pending.png`, compares it with `last-sent.png`, and skips transfer when the bytes match.
@@ -253,7 +255,7 @@ The snapshot follows the [workflow state contract](docs/architecture.md#workflow
 For a simple foreground alternative to installing a scheduled job, leave this running in a terminal:
 
 ```bash
-uv run mysign workflow watch --state "$state" --device "$MYSIGN_DEVICE" \
+uv run mysign workflow watch --device "$MYSIGN_DEVICE" \
   --interval 300 -- private/produce-image
 ```
 
@@ -266,7 +268,7 @@ If you leave the prompt alone, it polls again after the interval and reminds you
 For example, the GitHub source and image selector compose as one producer:
 
 ```sh
-uv run mysign workflow watch --state "$state" --device "$MYSIGN_DEVICE" --interval 300 \
+uv run mysign workflow watch --device "$MYSIGN_DEVICE" --interval 300 \
   -- bash -o pipefail -c '
     mysign github status --policy data/github-actions.toml |
       mysign image match --map private/images.toml

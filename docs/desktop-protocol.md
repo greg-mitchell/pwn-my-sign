@@ -115,15 +115,19 @@ before EOF is observed. A hung producer or forced kill may require documented ma
 
 ```toml
 command = ["/absolute/producer", "literal argument"]
-working_directory = "/absolute/checkout"
-state_directory = "/absolute/private/workflow-state"
 device = "private device name or UUID"
 interval = 300
 notification_timeout = 15
+# Optional overrides:
+# working_directory = "~/projects/sign"
+# state_directory = "~/.local/state/pwn-my-sign/another-display"
 ```
 
-Unknown settings are rejected. Directories resolve relative to the configuration file; a relative producer executable
-resolves relative to `working_directory`. Producer arguments remain literal. Its working directory is explicitly set,
+Unknown settings are rejected. Omitted `working_directory` means the configuration file's directory. Omitted
+`state_directory` uses `${XDG_STATE_HOME:-$HOME/.local/state}/pwn-my-sign/display`, shared with terminal workflow
+commands; empty or relative XDG values use the home fallback. Explicit directory overrides must be absolute after
+`~` expansion; relative overrides are rejected. A relative producer executable resolves against `working_directory`,
+and `~` in that executable expands. Producer arguments remain literal. Its working directory is explicitly set,
 stdin is `/dev/null`, and no shell startup or activated environment is assumed. Pipelines must use an explicit producer
 that propagates upstream failures.
 
