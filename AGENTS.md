@@ -4,7 +4,8 @@ Rules for working in this repo:
 
 1. **Source of Truth**:
    * [README.md](./README.md) for high level setup and human-readable docs.
-   * [pyproject.toml](./pyproject.toml) for command definitions (`[tool.poe.tasks]`) and dependencies.
+   * [pyproject.toml](./pyproject.toml) for Python commands, checks, and dependencies.
+   * [Makefile](./Makefile) for desktop build entrypoints; [macos/Package.swift](./macos/Package.swift) for Swift targets.
    * [docs/](./docs)
        * [python-style.md](./docs/python-style.md): python style guide (sources)
        * [test-style.md](./docs/test-style.md): style guide for testing in this repo

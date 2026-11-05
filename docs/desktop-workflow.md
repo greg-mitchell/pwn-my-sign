@@ -19,12 +19,15 @@ Uploads require pressing the sign's physical button.
 4. Build and open the app from the checkout root:
 
    ```sh
-   uv run mysign workflow desktop-build --config private/desktop.toml --output 'private/desktop/My Sign.app'
+   make app
    open 'private/desktop/My Sign.app'
    ```
 
+`make app` checks prerequisites, syncs Python dependencies, and builds and locally signs the app. Full Xcode and an
+Apple developer account are unnecessary. Override paths with the `CONFIG` and `APP` Make variables.
+
 The app uses the checkout's `.venv` and configuration at their recorded paths. Quit before rebuilding; rebuild after
-moving the checkout. Local signing needs no Apple developer account.
+moving the checkout.
 
 ## Configuration
 

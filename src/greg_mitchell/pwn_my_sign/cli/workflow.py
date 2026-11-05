@@ -1,7 +1,6 @@
 import click
 
 from greg_mitchell.pwn_my_sign.cli.workflow_desktop import desktop
-from greg_mitchell.pwn_my_sign.cli.workflow_desktop_build import desktop_build
 from greg_mitchell.pwn_my_sign.cli.workflow_poll import poll
 from greg_mitchell.pwn_my_sign.cli.workflow_runtime import interruption_handlers
 from greg_mitchell.pwn_my_sign.cli.workflow_upload import upload
@@ -20,4 +19,3 @@ workflow.add_command(upload)
 workflow.add_command(watch)
 
 workflow.add_command(desktop)
-workflow.add_command(desktop_build)

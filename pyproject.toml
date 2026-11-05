@@ -61,7 +61,7 @@ lint = "ruff check"
 format = "ruff format"
 typecheck = "ty check"
 test = "pytest"
-test-native = "python scripts/test_desktop_native.py"
+test-native = "make test-native"
 check-all = { sequence = ["lint", "typecheck", "test", "test-native"], ignore_fail = false }
 fix-all = { sequence = ["lint --fix", "format"], ignore_fail = false }
 

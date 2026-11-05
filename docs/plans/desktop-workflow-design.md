@@ -11,6 +11,9 @@ notifications, a persistent menu, simple local source builds, and no signing inf
 The native app supplies the notification and Bluetooth permission identity. Python reuses the existing poller and
 snapshot uploader. This preserves terminal workflows and avoids a second upload worker or scheduler.
 
+Source builds target Command Line Tools with SwiftPM, without requiring full Xcode. Each language retains its own
+manifest; a root Make entrypoint coordinates the macOS bundle build and local signing.
+
 ## Alternatives investigated
 
 | Option | Finding |

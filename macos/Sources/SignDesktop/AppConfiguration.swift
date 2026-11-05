@@ -21,6 +21,6 @@ enum ConfigurationError: Error, LocalizedError {
     case missingPaths
 
     var errorDescription: String? {
-        "This app is missing its workflow paths. Build it with mysign workflow desktop-build."
+        "This app is missing its workflow paths. Build it with make app from the source checkout."
     }
 }

@@ -21,6 +21,14 @@ uv sync --locked
 
 Python 3.13.6 or later is required. `uv` creates the environment and installs the `mysign` executable.
 
+The optional macOS app also requires macOS 13 or newer and Apple's Command Line Tools with Swift 6 or newer:
+
+```sh
+xcode-select --install
+```
+
+Full Xcode is optional. `make app` checks the native tools and SDK, then syncs the Python environment before building.
+
 ## Upload a custom image
 
 Prepare an image exactly **1280 × 720 pixels**. The sender converts it to grayscale and 16 levels without resizing or cropping.
@@ -123,7 +131,6 @@ See [synthetic rendered examples](tests/fixtures/README.md#rendered-card-example
 | `mysign workflow upload` | Pending image and device | Transfer and recorded snapshot |
 | `mysign workflow watch` | Producer command, device, interval | Foreground reminders and explicit uploads |
 | `mysign workflow desktop` | Explicit private TOML configuration | Native-app JSON events and manual uploads |
-| `mysign workflow desktop-build` | Configuration, checkout, output app | Locally built and signed macOS app |
 
 See [architecture](docs/architecture.md) for command boundaries, stream contracts, and workflow invariants.
 
@@ -304,7 +311,7 @@ Copy [the example configuration](data/desktop.example.toml) into ignored `privat
 producer arguments. Build and open the app from the checkout root:
 
 ```sh
-uv run mysign workflow desktop-build --config private/desktop.toml --output 'private/desktop/My Sign.app'
+make app
 open 'private/desktop/My Sign.app'
 ```
 
@@ -324,7 +331,9 @@ uv run poe format
 uv run poe check-all
 ```
 
-Available tasks, entrypoints, and dependencies are defined in [pyproject.toml](pyproject.toml).
+Python tasks, entrypoints, and dependencies are defined in [pyproject.toml](pyproject.toml).
+The [Makefile](Makefile) exposes desktop build and test commands. Swift targets and native tests belong to the
+[macOS package](macos/Package.swift), built with SwiftPM. Run its tests with `make test-native`.
 Workflow behavior is covered by ordinary pytest tests with injected dependencies, without network, Bluetooth,
 subprocesses, or real waits. Run those alone with `uv run pytest -k workflow`.
 See [the contributor guidelines](AGENTS.md) for required checks, coding conventions, and test rules.

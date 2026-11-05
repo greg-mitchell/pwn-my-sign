@@ -89,3 +89,14 @@ def test_load_settings_when_producer_uses_home_returns_expanded_executable(
     result = load_settings(configuration)
 
     assert result.command == (str(tmp_path / "home/bin/producer"), "~/literal argument")
+
+
+def test_load_settings_when_example_copied_to_private_returns_private_producer(tmp_path: Path) -> None:
+    example = Path(__file__).resolve().parents[3] / 'data/desktop.example.toml'
+    configuration = tmp_path / 'private/desktop.toml'
+    configuration.parent.mkdir()
+    configuration.write_bytes(example.read_bytes())
+
+    result = load_settings(configuration)
+
+    assert result.command == (str(tmp_path / 'private/produce-image'),)

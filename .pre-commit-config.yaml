@@ -24,7 +24,7 @@ repos:
 
       - id: swift-tests
         name: native desktop tests
-        entry: uv run --locked poe test-native
+        entry: make test-native
         language: system
-        files: ^macos/
+        files: ^(macos/|Makefile$|pyproject\.toml$|\.pre-commit-config\.yaml$)
         pass_filenames: false
