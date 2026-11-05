@@ -27,7 +27,7 @@ body
 4. **Project boundaries**:
    * [docs/protocol.md](./docs/protocol.md) records observed device behavior. Preserve the verified wire format.
    * [docs/architecture.md](./docs/architecture.md) defines command boundaries and stream contracts.
-   * [docs/implementation-plan.md](./docs/implementation-plan.md) distinguishes completed work from WIP.
+   * [docs/plans/implementation-plan.md](./docs/plans/implementation-plan.md) distinguishes completed work from WIP.
    * Keep external scheduling in documented Unix composition. Thin Python CLI commands delegate workflow logic and state
      to `src`, with injected dependencies and ordinary pytest coverage. Terminal prompts come first; desktop UI is optional.
    * Keep device identities, Android bug reports, raw Bluetooth captures, and investigation photos in ignored `private/`.

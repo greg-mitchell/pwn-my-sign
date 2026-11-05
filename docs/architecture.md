@@ -1,13 +1,9 @@
 # Architecture
 
-This document defines design principles and contracts. See the [README](../README.md) for setup, commands, and workflow
-recipes, the [implementation plan](implementation-plan.md) for progress and acceptance criteria, and the
-[protocol](protocol.md) for verified device behavior.
+This is the conceptual model for the CLI and optional desktop app. See the [README](../README.md) for commands,
+the [desktop guide](desktop-workflow.md) for setup, and the [desktop protocol](desktop-protocol.md) for JSON details.
 
 ## Composition and boundaries
-
-Each leaf command performs one operation and exits. Domain groups organize discovery while preserving Unix pipe
-composition. Keep CLI parsing separate from domain operations, and inject side-effecting dependencies.
 
 ```mermaid
 flowchart LR
@@ -19,113 +15,109 @@ flowchart LR
     sender -->|BLE| sign[Sign]
 ```
 
-Source adapters own requests and domain-specific interpretation. Selectors own exact code-to-asset mappings; renderers
-own image construction. The sender owns image validation, encoding, and device transfer. These operations remain
-independent of one another's domains.
+| Component | Responsibility |
+| --- | --- |
+| Source adapter | Validate provider data and emit a stable status code; classification policy is an explicit input. |
+| Selector / renderer | Map a code to an existing image, or construct an image from explicit artwork, layout, and text. |
+| Workflow | Validate desired images, compare and persist state, coordinate polling and manual uploads. |
+| Device sender | Validate and encode an image, prompt for button wake, and transfer over BLE. |
+| CLI | Parse arguments and delegate to domain operations with injected effects. |
 
-Provider summary validation is separate from user policy. GitHub's indicator is the default output;
-an explicit `--policy FILE` selects typed TOML settings for optional service classification.
-Policy files require an explicit mode; service mode also requires priority service IDs, an outage threshold, and all codes.
-Indicator policies accept no service settings. The [static Actions policy](../data/github-actions.toml) supplies a complete
-example, selected only by its explicit path. No policy is discovered from global files or the environment.
+Leaf commands do one operation and exit. Terminal watch and the desktop controller compose those operations into
+foreground loops. External scheduling belongs to systemd, cron, or launchd; commands install no jobs.
 
-The `mysign workflow` group delegates comparisons, persistence, locks, and foreground reminders to focused modules
-under `src`. Workflows accept complete PNG bytes from arbitrary producer commands or one-shot file/stdin inputs.
-They own no provider policy or image selection. Producers can compose sources, selectors, and renderers externally;
-device sending remains in process with injected dependencies.
-External scheduling belongs to systemd, cron, or launchd; commands do not embed a job manager.
-The explicitly opted-in desktop integration is an exception: it repeats polls while its native menu bar app is running,
-without installing a system scheduler. The existing terminal watcher remains a foreground loop.
-Python and testing conventions are defined in [the contributor guidelines](../AGENTS.md).
+## Stream contracts
 
-## Stream and failure contracts
+1. Sources emit one status code and newline; selectors consume one code and emit the selected PNG's original bytes.
+2. Producers emit one complete static 1280 × 720 PNG, log to stderr, and exit zero. Workflows pass literal arguments
+   without an implicit shell. Producer-command mode observes exit status; piped image bytes cannot carry it.
+3. Validate complete inputs before publication, output, button prompts, or Bluetooth discovery. Invalid data never
+   implies a healthy source or replaces a valid image.
+4. Data belongs on stdout; diagnostics, progress, and prompts belong on stderr. Nonzero exit indicates failure.
 
-- Sources emit one stable code and a newline on stdout. Unknown or incomplete data fails rather than implying health.
-- Selectors consume one exact code from stdin and emit the selected PNG's original bytes. Asset paths resolve relative
-  to the explicit mapping file. Selected cards must be static 1280 x 720 PNGs. Lookup, read, or validation failures
-  produce no image output.
-- Renderers produce deterministic static 1280 x 720 grayscale PNG bytes or write an explicitly named output file.
-  Rendering completes before output begins; invalid inputs produce no image and preserve an existing output file.
-  Artwork and TOML layout templates are explicit inputs; visible text requires an explicit font.
-  Layouts declare nonoverlapping canvas boxes, vertical alignment, and text typography. Text blocks are optional.
-  Text inset advice is device-specific; artwork may reach canvas edges. Pillow owns text wrapping and multiline layout.
-  Rendering has no source interpretation or scheduling state.
-- The sender validates the complete input before prompting or scanning Bluetooth. PNG stdin must be static and
-  1280 x 720; file inputs retain the image formats supported by the sender.
-- Device discovery streams labeled device IDs, names, and RSSI on stdout as advertisements arrive. By default it
-  selects the sign's advertised service; `--all` includes every nearby BLE device. Duplicate advertisements are
-  suppressed while later name updates remain visible. Scan duration, prompts, completion, and errors go to stderr.
-- Data belongs on stdout; progress, prompts, and errors belong on stderr.
-- Nonzero exit indicates failure. Successful transfer calls do not establish physical display acknowledgement;
-  see [the protocol's observed limits](protocol.md).
+Command options and examples are in the [README](../README.md#composable-tools). Verified device behavior is in the
+[BLE protocol](protocol.md).
 
 ## Workflow state
 
-`workflow poll` accepts either `--image FILE` (`-` for stdin) or an explicit producer command after `--`.
-`workflow watch` requires a repeatable producer command. The producer emits a static 1280 x 720 PNG on stdout,
-logs on inherited stderr, and exits zero; stdin is `/dev/null`. Arguments are passed without an implicit shell.
-Nonzero exit discards all producer output. Successful output is validated completely before any state changes.
-Commands that compose pipelines must propagate upstream failures themselves. One-shot stdin cannot carry exit status.
-Interruption terminates and reaps the producer process group before releasing locks, escalating to SIGKILL after
-a five-second grace period. No producer-specific retry loop is embedded; the watcher retries at its normal interval.
-
-Workflow commands default to `${XDG_STATE_HOME:-$HOME/.local/state}/pwn-my-sign/display`; an empty or relative XDG
-value falls back to the home location. Terminal `--state` and desktop `state_directory` select an override. All
-operations for a sign must use the same directory; select a different directory for each additional sign.
-Keep these workflow artifacts in that directory:
-
 | Artifact | Meaning |
 | --- | --- |
-| `pending.png` | Latest complete desired image selected from the source |
-| `last-sent.png` | Exact image whose transfer calls last completed successfully |
+| `pending.png` | Latest complete desired image. |
+| `last-sent.png` | Exact snapshot whose transfer calls last completed successfully. |
 
-Publish pending images through a temporary file beside the destination and an atomic rename, only when bytes differ.
-Failed fetches, selections, or renders preserve the previous pending image. Identical source states select identical
-prebuilt assets; rendered output should change with meaningful source data rather than polling timestamps.
+1. Publish changed pending images atomically. Failed producers preserve the previous image.
+2. Snapshot pending before upload; skip when it matches last-sent. Advance last-sent only after successful transfer
+   calls. A newer pending image survives an older snapshot's transfer.
+3. Completion records transfer calls, not confirmation of the physical display.
+4. Use one state directory per sign, shared by every terminal and desktop invocation. Separate poll and upload locks
+   allow polling during a transfer while preventing overlapping instances of the same operation.
+5. Polling prepares images; uploading is an explicit foreground action. Failed polls retain the last desired image
+   for contextual manual upload. The terminal watcher waits for a successful poll before offering it again.
 
-An uploader snapshots the pending image and sends only when that snapshot differs from last-sent. Advance last-sent only
-to that snapshot after successful transfer calls. A newer pending image published during transfer remains available for
-the next upload.
-A source that recovers before upload may select the already-sent image, making an upload unnecessary.
+Defaults, overrides, and lock recovery are documented in the [workflow guide](../README.md#image-workflows).
 
-Allow only one poller and one uploader per workflow/device, using scheduler supervision or Unix locks. All invocations
-for the same device share a state directory; locks cannot coordinate separate directories.
-Failed polls preserve the last known desired image, which remains available for manual upload without an age gate.
-Scheduling only polls; uploads remain foreground actions. The [README workflow recipes](../README.md#image-workflows)
-apply these contracts.
+## Desktop integration
 
-## Button prompts and desktop integration
+| Component | Owns |
+| --- | --- |
+| Native macOS app | Menu, notification permissions and submission, diagnostic logs, Python child lifetime. |
+| Python controller | Poll timing, reminder history, workflow state, and the existing snapshot uploader. |
+| State machine | Immutable workflow facts and declarative event → state/effect decisions. |
+| Protocol session | Versioned JSON records, notification acknowledgments, and view revisions. |
 
-The terminal prompt is the primary interface while uploads require a physical button press. Prompt after validation and
-before discovery, so the person knows when to wake the sign.
+The native app owns one Python child. Polling and uploads run synchronously in that child; the native menu stays
+responsive. Views project workflow state, and revision-matched actions prevent stale clicks from starting work.
+The [transition table](../src/greg_mitchell/pwn_my_sign/desktop/machine.py) is the implementation source of truth.
 
-An optional foreground Python loop invokes the one-shot poller and rings a terminal bell while desired content differs
-from last-sent. Enter invokes the same uploader; its prompt supplies the button timing. The loop polls again when its
-input interval expires, retries after errors, and exits on interruption or EOF at its prompt. Failed polls do not offer stale
-pending content for upload during that iteration. It installs no scheduler and keeps no separate reminder history.
+```mermaid
+stateDiagram-v2
+    [*] --> Checking
+    Checking --> Idle: poll result and reminder handling
+    state "Idle: up to date, update available, or poll failed" as Idle
+    Idle --> Checking: interval or Check
+    Idle --> Uploading: Upload available image
+    state Uploading {
+        [*] --> Preparing
+        Preparing --> WaitingForButton: validated snapshot
+        WaitingForButton --> Sending: connected
+    }
+    state "Result: completed, skipped, or failed" as Result
+    Uploading --> Result
+    Result --> Checking: fresh poll
+```
 
-The optional native macOS app launches one `mysign workflow desktop --config FILE` child. The app owns menus,
-notification authorization/submission, and child process lifetime. Python owns periodic polling, reminder deduplication,
-state comparisons, and the existing snapshot uploader. It distinguishes up-to-date, pending, waiting-for-button,
-sending, completed, and failure states without parsing diagnostics. Completion describes transfer calls; physical
-display confirmation remains separate.
+## Desktop interaction
 
-Typed device callbacks run after validation/before discovery and after connection. Before scanning, the child waits for
-the native app to acknowledge successful button-notification submission. Permission denial, submission failure, EOF,
-or a bounded acknowledgment timeout prevents scanning. Later notification errors do not change completed image state.
-The [desktop JSON contract](desktop-protocol.md) defines bounded view/notification records, acknowledgments, and
-revision-matched actions. A separate persistent reminder fingerprint does not alter image artifacts.
+```mermaid
+sequenceDiagram
+    actor Person
+    participant App as Native app
+    participant Controller as Python controller
+    participant Workflow as Workflow / sender
+    App->>Controller: Launch with explicit configuration
+    Controller->>Workflow: Poll and compare image state
+    opt Newly unsent image not already notified
+        Controller->>App: Update notification request
+        App-->>Controller: Submission acknowledgment
+    end
+    Controller->>App: Actionable view
+    Person->>App: Upload
+    App->>Controller: Action with current view revision
+    Controller->>Workflow: Snapshot and validate
+    Workflow->>Controller: Waiting-for-button event
+    Controller->>App: Button notification request
+    App-->>Controller: Submission acknowledgment
+    Workflow->>Workflow: Discover, connect, transfer, record snapshot
+    Controller->>App: Result view and notification request
+    App-->>Controller: Submission acknowledgment
+    Controller->>Workflow: Poll again
+```
 
-Normal quit and sleep signal the child and wait asynchronously for cleanup. Wake waits for the prior child to actually
-stop before launching a fresh one. Parent EOF ends the child before its next poll; a running operation may finish
-first. `desktop.lock` prevents duplicate controllers, including an orphaned child. Existing locks are never deleted
-automatically, and snapshot semantics remain identical to terminal uploads.
-
-Scheduler installation, background helpers, and desktop notifications require explicit setup. They are not side effects
-of installing or invoking an ordinary command. Convenience options are tracked in the
-[implementation plan](implementation-plan.md#optional-desktop-and-rendering-work).
-
-The [desktop design](desktop-workflow-design.md) records the native-app decision, the earlier SwiftBar investigation,
-and live acceptance gates. [Local source builds](desktop-workflow.md) use automatic ad hoc signing without accounts or
-signing infrastructure and depend on the checkout's synced environment. The app supplies the Bluetooth usage
-description for its Python child; SwiftBar and a separate upload companion are unnecessary.
+1. Button-notification acknowledgment gates discovery. Denial, timeout, or EOF stops preparation; acknowledgment
+   establishes submission, not visible delivery. Later notification errors cannot undo a completed transfer.
+2. Remember an update notification only after accepted submission, once per unsent image. This reminder history is
+   separate from image state and clears when up to date.
+3. Poll immediately, then wait an interval after each completed check. Upload pauses polling; missed intervals are
+   not replayed. Busy phases reject new workflow actions.
+4. Quit and sleep cancel the child and wait for cleanup. Wake starts a replacement only after the previous child exits.
+   Parent EOF prevents another poll. `desktop.lock` prevents duplicate controllers; locks are never removed automatically.

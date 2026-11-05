@@ -8,7 +8,8 @@ The native menu bar app starts exactly one checkout executable:
 
 The Python child owns polling, workflow image state, reminder history, and explicit uploads. The native parent owns
 menus, notification permission/submission, Test Notification, bounded diagnostic logs, and child lifetime.
-This interface does not alter image encoding or the BLE wire protocol.
+The [architecture](architecture.md#desktop-integration) defines ownership, state transitions, and interaction order.
+This reference defines the process wire contract; it does not alter image encoding or the BLE wire protocol.
 
 ## Framing
 
@@ -94,69 +95,13 @@ Actions are `upload` and `check`. The revision must match the exact current view
 including actions buffered during a failed transfer. Quit is not an input action: the parent sends SIGTERM and waits
 asynchronously for the child to unwind.
 
-## Controller and state
+## Session boundaries
 
-Poll immediately after startup, then wait the configured interval after a completed poll. Do not replay missed intervals.
-Poll and upload execute synchronously in the Python child; the native UI remains responsive. An explicit upload pauses
-polling. After an upload attempt, perform a fresh poll before offering another image.
+Keep the view in nonactionable `checking` while an update notification awaits acknowledgment, then emit
+`update_available` with any error context. Device callbacks supply phases; diagnostics are never protocol input.
 
-`desktop/machine.py` owns immutable workflow facts and a declarative table of allowed events, destination phases,
-ordered effects, and view publication. Its pure `transition(state, event)` returns a decision; the controller executes
-those effects and feeds their results back as events. Views are projections of workflow state, with revisions owned
-by the session solely for stale-action rejection. Device progress uses the same transitions.
+Pending actions and notification acknowledgments belong to one child session. Discard them when that child exits;
+a replacement starts with a new session. EOF prevents the child from starting another poll, though an operation
+already running may finish first.
 
-| Current phase | Event | Destination / work |
-| --- | --- | --- |
-| Starting, idle, or finished | Check or interval expiry | Checking; poll |
-| Checking | Unsent image | Stay checking; inspect reminder history and request notification if needed |
-| Checking | Reminder known or notification answered | Update available; remember only accepted submissions |
-| Checking | Already sent | Up to date; clear reminder history |
-| Checking | Poll failed | Poll failed; offer a retained unsent image if available |
-| Update available, or poll failed with retained image | Upload | Preparing upload; snapshot and upload |
-| Preparing upload | Validated button boundary | Waiting for button; require notification acknowledgment |
-| Waiting for button | Connected | Sending |
-| Upload in progress | Completed, skipped, or failed | Publish result; notify; check again |
-| Any phase | Presentation failure | Preserve workflow outcome; show and report error |
-
-Unlisted transitions do no work. Check and Upload cannot start overlapping work in busy phases.
-
-A successful poll compares complete pending bytes with last-sent. One accepted update notification per unsent fingerprint
-is retained in `desktop-reminder.json`, separate from the authoritative PNGs. Keep the view in nonactionable `checking`
-while a new-image notification is awaiting acknowledgment, then emit `update_available` with any error context.
-Advance history only after acknowledgment;
-clear it when up to date. Failed polls retain the previous image but send no fresh update notification from that failure.
-A contextual manual upload of retained content remains available when its pending image is unsent.
-
-Typed device events identify validated discovery and connected sending boundaries. Do not parse stderr to infer phases.
-Completed/skipped outcomes come from the existing snapshot operation; completion follows last-sent publication and lock
-release. A newer pending image can coexist with the exact transferred snapshot.
-
-`desktop.lock` prevents duplicate controllers. Acquisition waits briefly for an old instance to unwind; no lock is
-automatically removed. Existing `poll.lock` and `upload.lock` retain their meanings. EOF is checked before every new
-poll, including after an operation finishes. An operation already running when the native parent crashes may finish
-before EOF is observed. A hung producer or forced kill may require documented manual stale-lock recovery.
-
-## Explicit private configuration
-
-```toml
-command = ["/absolute/producer", "literal argument"]
-device = "private device name or UUID"
-interval = 300
-notification_timeout = 15
-# Optional overrides:
-# working_directory = "~/projects/sign"
-# state_directory = "~/.local/state/pwn-my-sign/another-display"
-```
-
-Unknown settings are rejected. Omitted `working_directory` means the configuration file's directory. Omitted
-`state_directory` uses `${XDG_STATE_HOME:-$HOME/.local/state}/pwn-my-sign/display`, shared with terminal workflow
-commands; empty or relative XDG values use the home fallback. Explicit directory overrides must be absolute after
-`~` expansion; relative overrides are rejected. A relative producer executable resolves against `working_directory`,
-and `~` in that executable expands. Producer arguments remain literal. Its working directory is explicitly set,
-stdin is `/dev/null`, and no shell startup or activated environment is assumed. Pipelines must use an explicit producer
-that propagates upstream failures.
-
-The native build embeds absolute `MySignExecutable` and `MySignConfiguration` values in `Info.plist`, a stable bundle
-identifier, and a Bluetooth usage description. It depends on the checkout and synced venv rather than bundling Python.
-Ordinary Quit/sleep terminates the child and waits for cleanup. Wake waits for an existing child to actually exit before
-starting a replacement. Pending actions and notification acknowledgments from an old child are discarded.
+Configuration settings are documented in the [desktop guide](desktop-workflow.md#configuration).

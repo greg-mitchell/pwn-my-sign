@@ -312,9 +312,8 @@ Local source builds use Apple's command-line tools and apply a local signature a
 or signing infrastructure is needed. Use **Test notification**, allow notifications, and verify a visible banner before
 using uploads. macOS may require permissions again after rebuilding.
 
-See [desktop setup and recovery](docs/desktop-workflow.md), the [design](docs/desktop-workflow-design.md), and the
-[implementation plan](docs/implementation-plan.md#optional-desktop-and-rendering-work) for the lifecycle contract and
-live hardware validation still required.
+See [desktop setup and recovery](docs/desktop-workflow.md) and the
+[desktop architecture](docs/architecture.md#desktop-integration).
 
 ## Development
 
@@ -341,12 +340,13 @@ uv run python scripts/investigation/analyze_photo.py private/photos/20261022T130
 
 ## Documentation
 
-- [Implementation plan](docs/implementation-plan.md): milestones and current WIP.
-- [Protocol](docs/protocol.md): observed BLE behavior and confirmed wire format.
-- [Architecture](docs/architecture.md): tool contracts, workflow state, and optional desktop integration.
-- [Display calibration](docs/display-calibration.md): photograph analysis and the 32-pixel content inset.
-- [Provenance and licensing](docs/provenance.md): independent implementation, synthetic fixtures, and dependency notices.
-- [Agent instructions](AGENTS.md), [Python style](docs/python-style.md), and [test style](docs/test-style.md).
+- Guides: [desktop setup](docs/desktop-workflow.md) and [workflow scheduling](docs/workflow-scheduling.md).
+- Developer references: [architecture](docs/architecture.md), [desktop process protocol](docs/desktop-protocol.md),
+  [BLE protocol](docs/protocol.md), and [display calibration](docs/display-calibration.md).
+- Contributing: [agent instructions](AGENTS.md), [Python style](docs/python-style.md), and [test style](docs/test-style.md).
+- [Provenance and licensing](docs/provenance.md): implementation sources, fixtures, and dependency notices.
+- Planning history in `docs/plans/`: [milestones and remaining validation](docs/plans/implementation-plan.md),
+  and [desktop decisions](docs/plans/desktop-workflow-design.md). These are not setup or architecture references.
 
 ## License
 

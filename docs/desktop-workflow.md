@@ -1,34 +1,21 @@
-# macOS desktop workflow
+# macOS menu bar app
 
-The optional **My Sign** menu bar app checks for a changed image, notifies you once when a new image needs uploading,
-and offers Upload from its menu. After you choose Upload, it validates the image, submits a notification telling you
-to press the sign's button, and starts discovery. The existing Python workflow owns polling, snapshots, locks, and
-recording completed transfers. No SwiftBar installation or separate scheduled job is needed.
+**My Sign** checks for changed images, notifies you when an upload is available, and offers Upload from its menu.
+Uploads require pressing the sign's physical button.
 
-## Build from source
+## Build and launch
 
-Use the checkout and synced Python environment from the [README](../README.md#setup). Install Apple's command-line
-developer tools if `xcrun swift --version` is unavailable. The app uses Swift 6 and macOS 13 or newer; the tools on the
-machine must support Swift 6. A full Xcode project, Apple account, developer membership, certificate setup, and
-notarization service are unnecessary for a local build. The build command applies an ad hoc signature automatically.
-
-1. Prepare an executable image producer as described in the [workflow recipes](../README.md#image-workflows).
-   It must emit one static 1280 × 720 PNG and exit zero, with diagnostics on stderr.
-2. Copy [the example configuration](../data/desktop.example.toml) to ignored `private/desktop.toml`:
+1. Complete the [Python setup](../README.md#setup). For the app, use macOS 13 or newer and Apple's Command Line Tools
+   with Swift 6 or newer. Install the tools with `xcode-select --install`.
+2. Prepare an executable [image producer](../README.md#image-workflows) that writes a static 1280 × 720 PNG to stdout.
+3. Copy the configuration and set `device` and `command`:
 
    ```sh
+   mkdir -p private
    cp data/desktop.example.toml private/desktop.toml
    ```
 
-3. Edit `device` to the name or UUID found by `mysign device scan`. Set `command` to your producer's literal arguments.
-   Omitted `working_directory` uses the configuration file's directory, so the copied example runs
-   `private/produce-image`. Omitted `state_directory` uses `${XDG_STATE_HOME:-$HOME/.local/state}/pwn-my-sign/display`,
-   the same default as terminal poll/upload/watch commands. Empty or relative XDG values use the home fallback.
-   Optional directory overrides must be absolute after expanding `~`; relative overrides are rejected. The producer
-   executable resolves against `working_directory` and expands `~`; other arguments remain literal. Use absolute paths
-   to assets and other executables inside producer scripts, without depending on shell startup files or an activated
-   environment. If the terminal sets `XDG_STATE_HOME` only in a shell startup file, set the same absolute
-   `state_directory` explicitly for the app to share its state when launched from Finder.
+   The example runs `private/produce-image`. Scan for the device with `uv run mysign device scan`.
 4. Build and open the app from the checkout root:
 
    ```sh
@@ -36,86 +23,42 @@ notarization service are unnecessary for a local build. The build command applie
    open 'private/desktop/My Sign.app'
    ```
 
-Keep the checkout, configuration, and `.venv` at those paths. The app records their absolute locations in its bundle;
-it does not copy Python, artwork, fonts, or configuration into a distribution. Run `uv sync --locked` after dependency
-changes. Quit the app before rebuilding. A failed build or signing step preserves an existing built app.
+The app uses the checkout's `.venv` and configuration at their recorded paths. Quit before rebuilding; rebuild after
+moving the checkout. Local signing needs no Apple developer account.
 
-The app has one stable bundle identifier and installation path, but a local signature does not guarantee privacy
-permission persistence across changed binary builds. macOS may ask for permission again after rebuilding. Keep using
-the same app location; do not modify the signed bundle after building it. Moving the checkout requires rebuilding.
-See [Apple's explanation of code identity](https://developer.apple.com/documentation/technotes/tn3127-inside-code-signing-requirements/).
+## Configuration
 
-## First launch and notifications
+| Setting | Default / meaning |
+| --- | --- |
+| `command` | Required producer argument array; arguments are literal, without an implicit shell. |
+| `device` | Required sign name or ID from `device scan`. |
+| `interval` | Seconds between checks, measured after each check finishes; default 300. |
+| `notification_timeout` | Seconds to wait for notification submission; default 15. |
+| `working_directory` | Configuration file's directory; relative producer executables resolve here. |
+| `state_directory` | `$XDG_STATE_HOME/pwn-my-sign/display`, falling back to `~/.local/state/pwn-my-sign/display`. |
 
-Use **Test notification** in the My Sign menu, allow notifications if macOS asks, and verify a visible banner. The
-native app checks current notification settings on each request and reports permission or submission errors in its
-menu. A successful retry clears an earlier notification error. If notifications are denied, enable them for My Sign
-in macOS notification settings and test again. Focus and notification presentation preferences can suppress or delay
-banners even when submission succeeds; the menu remains available.
+Directory overrides accept absolute paths and `~`. Use absolute asset paths inside producer scripts. Set
+`state_directory` explicitly if Finder and your terminal have different `XDG_STATE_HOME` values, or to manage another
+sign. Terminal workflow commands can share this directory using `--state`.
 
-The user confirmed visible notifications from both the disposable probe and the actual locally built app on the
-development Mac, and confirmed the actual app's up-to-date menu against an offline fixture. Test each installation's
-permissions: the probe used a different bundle identity, so its grant does not grant the built app permission
-automatically.
+## Upload an image
 
-The app checks immediately and then waits `interval` seconds after each check completes. It remembers the last
-notified unsent image across ordinary restarts and clears that reminder history when the desired image is up to date.
-Dismissing a notification does not mark an image sent. There are no recurring reminders, snooze, or automatic uploads.
+1. Open the My Sign menu and choose **Test notification**. Allow notifications and confirm a banner appears.
+2. When an update is available, choose **Upload**. Allow Bluetooth access if prompted.
+3. Press the sign's button when the notification says **Press the sign's button now**. Discovery waits up to 60 seconds.
+4. Check the physical display after completion. The sign's protocol does not acknowledge its refresh.
 
-Choose **Upload** when an unsent image is available. Allow Bluetooth access for My Sign if asked. Press the sign's
-button when the app says **Press the sign's button now**. The discovery window is 60 seconds; a missed window leaves
-the image available for explicit retry. The menu stays responsive during the transfer and disables duplicate workflow
-actions. Completed means the transfer calls finished and the uploaded snapshot was recorded; check the physical sign
-to confirm its refresh, because the protocol provides no completion acknowledgment.
+The app notifies once per unsent image and never uploads automatically. Use **Check** for an immediate check.
 
-The Python process will not scan until the app confirms successful button-notification submission. Denial,
-submission failure, a disconnected app, or a prompt acknowledgment timeout stops preparation. A failure to notify
-after transfer completion does not undo the completed transfer or its last-sent record.
+## Troubleshooting and removal
 
-## Failures, quit, and sleep
+1. Read the latest error in the menu. Diagnostics are in `desktop-logs/` beside the configuration.
+2. For missing banners, enable My Sign in macOS notification settings, check Focus, and retry **Test notification**.
+   Rebuilding may require granting permissions again.
+3. A failed check preserves the previous image. **Upload retained image** sends that image; **Check** retries the producer.
+4. If a lock remains after a crash, follow [lock recovery](../README.md#locks-and-recovery).
+5. Optionally add the app to [Login Items](https://support.apple.com/guide/mac-help/mh15189/mac).
+   To remove it, quit, remove its login item, and delete the app. Workflow images remain available to terminal commands.
 
-Producer failure preserves the previous pending image, shows the error and last successful check, and retries at the
-normal interval. If the retained image differs from last-sent, **Upload retained image** is an explicit manual action
-with that failure context; it is not presented as a fresh source update.
-
-Quit cancels the Python helper and waits for its cleanup. Sleep requests the same cancellation; wake starts one fresh
-helper only after the previous process has actually stopped. Missed checks are not replayed. A parent crash closes
-the helper's input; it exits before another poll, possibly after finishing its current operation.
-
-One `desktop.lock` per state directory prevents duplicate controllers. Existing `poll.lock` and `upload.lock` retain
-their meanings, so terminal operations can share the same state directory. Startup briefly waits for a previous
-controller to unwind. It does not automatically delete locks.
-
-A hung producer or a forced kill can require [manual lock recovery](../README.md#locks-and-recovery). Confirm the
-owning process and its children have stopped before removing lock files. Never infer successful transfer from a
-vanished process; `last-sent.png` remains the authoritative record of completed transfer calls. Removing only
-`desktop-reminder.json` resets reminder history without changing image state.
-
-Diagnostics are kept in bounded local logs alongside the private configuration. The menu's latest workflow and
-notification errors are the first place to look. No notification or transfer uses shell command interpretation.
-
-## Login and removal
-
-Optionally add the built app using macOS Login Items. The build does not enable login startup or install launchd,
-cron, or another scheduler. See [Apple's login-item instructions](https://support.apple.com/guide/mac-help/mh15189/mac).
-
-To remove it, quit My Sign, remove its login item if you added one, and delete the built app. Keep or remove the private
-configuration and logs as desired. Workflow images remain usable from the terminal. No third-party app is modified.
-
-## Validation
-
-Run `uv run poe check-all` from the checkout root. Python behavior tests inject effects and do not use Bluetooth,
-network, subprocesses, threads, or real waits. Native tests cover framing, action gating, notification retries, and
-sleep/wake process coordination without launching the app. The native test task skips platforms other than macOS.
-
-Before relying on unattended checks, validate the actual installed app:
-
-- Test a visible notification and useful menu behavior with permission denied and then enabled.
-- Test Bluetooth permission grant/denial and one real upload with correct button timing.
-- Check that repeated clicks do not duplicate uploads and newer pending content survives an older snapshot transfer.
-- Quit, relaunch, and sleep/wake during a producer and during transfer; inspect image state and locks.
-- Rebuild, recreate the environment, and check permissions and paths again. Check login startup if enabled.
-
-These hardware and operating-system transitions require live acceptance; automated unit tests do not establish them.
-The design and process contract are recorded in [the design](desktop-workflow-design.md) and
-[the JSON protocol](desktop-protocol.md).
+See [architecture](architecture.md#desktop-integration) for component ownership and lifecycle, and
+[the desktop protocol](desktop-protocol.md) for the process interface.
