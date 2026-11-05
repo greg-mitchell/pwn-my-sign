@@ -16,7 +16,7 @@ done
 checkout=$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)
 cd "$checkout"
 configuration=${MYSIGN_CONFIG:-private/desktop.toml}
-output=${MYSIGN_APP:-private/desktop/My Sign.app}
+output=${MYSIGN_APP:-build/macos/My Sign.app}
 [[ -f "$configuration" ]] || fail "Configuration does not exist: $configuration"
 configuration=$(cd "$(dirname "$configuration")" && pwd)/$(basename "$configuration")
 [[ "$output" == *.app ]] || fail 'APP must end in .app.'

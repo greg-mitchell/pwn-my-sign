@@ -1,5 +1,5 @@
 CONFIG ?= private/desktop.toml
-APP ?= private/desktop/My Sign.app
+APP ?= build/macos/My Sign.app
 
 export MYSIGN_CONFIG := $(value CONFIG)
 export MYSIGN_APP := $(value APP)

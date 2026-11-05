@@ -20,11 +20,12 @@ Uploads require pressing the sign's physical button.
 
    ```sh
    make app
-   open 'private/desktop/My Sign.app'
+   open 'build/macos/My Sign.app'
    ```
 
 `make app` checks prerequisites, syncs Python dependencies, and builds and locally signs the app. Full Xcode and an
-Apple developer account are unnecessary. Override paths with the `CONFIG` and `APP` Make variables.
+Apple developer account are unnecessary. The app is written to `build/macos/My Sign.app`; Swift intermediates stay in
+`macos/.build/`. Override configuration and output paths with the `CONFIG` and `APP` Make variables.
 
 The app uses the checkout's `.venv` and configuration at their recorded paths. Quit before rebuilding; rebuild after
 moving the checkout.

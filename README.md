@@ -312,7 +312,7 @@ producer arguments. Build and open the app from the checkout root:
 
 ```sh
 make app
-open 'private/desktop/My Sign.app'
+open 'build/macos/My Sign.app'
 ```
 
 Local source builds use Apple's command-line tools and apply a local signature automatically. No developer account
@@ -334,6 +334,12 @@ uv run poe check-all
 Python tasks, entrypoints, and dependencies are defined in [pyproject.toml](pyproject.toml).
 The [Makefile](Makefile) exposes desktop build and test commands. Swift targets and native tests belong to the
 [macOS package](macos/Package.swift), built with SwiftPM. Run its tests with `make test-native`.
+
+The checkout is the Python package root (`pyproject.toml`, `src/`, `tests/`). The optional platform app is a separate
+Swift package under `macos/`, using SwiftPM's `Sources/<target>` and `Tests/<target>` layout. Swift intermediates stay in
+`macos/.build/`; `make app` assembles the locally signed app in `build/macos/`. Both are ignored build output.
+Personal configuration and artwork belong in ignored `private/`; workflow state uses the documented state directory.
+
 Workflow behavior is covered by ordinary pytest tests with injected dependencies, without network, Bluetooth,
 subprocesses, or real waits. Run those alone with `uv run pytest -k workflow`.
 See [the contributor guidelines](AGENTS.md) for required checks, coding conventions, and test rules.
