@@ -208,5 +208,7 @@ __marimo__/
 
 # Reverse engineering output
 private/
+.build/
+.swiftpm/
 bugreport-*.zip
 bugreport-*.txt

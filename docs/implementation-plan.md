@@ -102,11 +102,21 @@ no service or scheduled job was installed during validation.
 
 ## Optional desktop and rendering work
 
-The [desktop workflow proposal](desktop-workflow-design.md) scopes a self-contained streamable SwiftBar plugin and
-records live investigation findings. A companion app successfully hosted a Bluetooth scan after direct plugin access
-reproduced a macOS privacy abort. Menu actions, visible notifications, permission lifecycle, and real uploads remain
-acceptance gates. The desktop workflow is not implemented.
+The [revised desktop design](desktop-workflow-design.md) replaces SwiftBar and its upload companion with one native
+menu bar app and one Python workflow child. The user prioritized working notifications, simple setup, and source builds
+without signing infrastructure. A locally compiled, ad hoc signed native probe displayed notifications confirmed by
+the user, including a menu-triggered retry after permission was enabled.
 
-The helper reuses the existing poller and uploader and owns neither source interpretation nor image encoding.
-It introduces an explicit desktop-only polling loop; it installs no separate scheduler. Native menu bar UI and dynamic
-rendering remain outside this scope.
+Implemented in three review units: typed upload boundaries/outcomes, the Python desktop controller and JSON protocol,
+and the native app/local build/setup. The controller reuses the existing poller and snapshot uploader, owns no provider
+policy or image encoding, and installs no separate scheduler. The native app owns menus, notification settings and
+submission, and cancellation of its child during quit/sleep. Local builds apply a local signature automatically.
+
+Validation: lint, strict types, 711 Python tests, 70 native tests, and all pre-commit hooks pass. A real-process offline
+smoke checked polling, notification deduplication, menu actions, already-sent upload skipping, EOF, and lock cleanup.
+The actual local app built, signed, launched, and polled its offline fixture through the Python child.
+
+See [desktop setup](desktop-workflow.md) and [the JSON contract](desktop-protocol.md). Actual app notification denial,
+Bluetooth permission grant/denial, a real upload, sleep during transfer, permission persistence across rebuilds, and
+optional login startup remain live acceptance checks. The native probe establishes visible delivery on the tested Mac;
+it does not establish the installed workflow's end-to-end readiness. Dynamic rendering remains outside this scope.

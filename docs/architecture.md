@@ -34,6 +34,8 @@ under `src`. Workflows accept complete PNG bytes from arbitrary producer command
 They own no provider policy or image selection. Producers can compose sources, selectors, and renderers externally;
 device sending remains in process with injected dependencies.
 External scheduling belongs to systemd, cron, or launchd; commands do not embed a job manager.
+The explicitly opted-in desktop integration is an exception: it repeats polls while its native menu bar app is running,
+without installing a system scheduler. The existing terminal watcher remains a foreground loop.
 Python and testing conventions are defined in [the contributor guidelines](../AGENTS.md).
 
 ## Stream and failure contracts
@@ -99,15 +101,28 @@ from last-sent. Enter invokes the same uploader; its prompt supplies the button 
 input interval expires, retries after errors, and exits on interruption or EOF at its prompt. Failed polls do not offer stale
 pending content for upload during that iteration. It installs no scheduler and keeps no separate reminder history.
 
-An optional desktop helper observes local workflow state and invokes the same upload operation. It can distinguish
-up-to-date, update-pending, waiting-for-button, sending, completed, and failed states. It owns presentation rather than
-source interpretation, image construction, scheduling, or the BLE protocol. Completion describes transfer calls;
-physical display confirmation remains separate.
+The optional native macOS app launches one `mysign workflow desktop --config FILE` child. The app owns menus,
+notification authorization/submission, and child process lifetime. Python owns periodic polling, reminder deduplication,
+state comparisons, and the existing snapshot uploader. It distinguishes up-to-date, pending, waiting-for-button,
+sending, completed, and failure states without parsing diagnostics. Completion describes transfer calls; physical
+display confirmation remains separate.
+
+Typed device callbacks run after validation/before discovery and after connection. Before scanning, the child waits for
+the native app to acknowledge successful button-notification submission. Permission denial, submission failure, EOF,
+or a bounded acknowledgment timeout prevents scanning. Later notification errors do not change completed image state.
+The [desktop JSON contract](desktop-protocol.md) defines bounded view/notification records, acknowledgments, and
+revision-matched actions. A separate persistent reminder fingerprint does not alter image artifacts.
+
+Normal quit and sleep signal the child and wait asynchronously for cleanup. Wake waits for the prior child to actually
+stop before launching a fresh one. Parent EOF ends the child before its next poll; a running operation may finish
+first. `desktop.lock` prevents duplicate controllers, including an orphaned child. Existing locks are never deleted
+automatically, and snapshot semantics remain identical to terminal uploads.
 
 Scheduler installation, background helpers, and desktop notifications require explicit setup. They are not side effects
 of installing or invoking an ordinary command. Convenience options are tracked in the
 [implementation plan](implementation-plan.md#optional-desktop-and-rendering-work).
 
-The [desktop workflow proposal](desktop-workflow-design.md) describes a self-contained SwiftBar integration, including
-an explicit exception for desktop-owned periodic polling and a companion app for Bluetooth permission isolation.
-It records exploratory findings and remaining acceptance gates; this integration is not implemented.
+The [desktop design](desktop-workflow-design.md) records the native-app decision, the earlier SwiftBar investigation,
+and live acceptance gates. [Local source builds](desktop-workflow.md) use automatic ad hoc signing without accounts or
+signing infrastructure and depend on the checkout's synced environment. The app supplies the Bluetooth usage
+description for its Python child; SwiftBar and a separate upload companion are unnecessary.

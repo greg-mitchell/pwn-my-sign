@@ -8,7 +8,8 @@ Use it with signs you own or are authorized to manage. Product names only identi
 
 **Working:** GitHub status codes, card building, PNG selection, terminal reminders, and image uploads over Bluetooth LE.
 
-**Planned:** desktop reminders, hands-off uploads.
+**Optional:** a locally built macOS menu bar app for checks, notifications, and explicit uploads.
+See the [desktop setup](docs/desktop-workflow.md). Hands-off uploads remain planned.
 
 ## Setup
 
@@ -121,6 +122,8 @@ See [synthetic rendered examples](tests/fixtures/README.md#rendered-card-example
 | `mysign workflow poll` | PNG file/stdin or producer command | Changed `pending.png` in a state directory |
 | `mysign workflow upload` | Pending image and device | Transfer and recorded snapshot |
 | `mysign workflow watch` | Producer command, device, interval | Foreground reminders and explicit uploads |
+| `mysign workflow desktop` | Explicit private TOML configuration | Native-app JSON events and manual uploads |
+| `mysign workflow desktop-build` | Configuration, checkout, output app | Locally built and signed macOS app |
 
 See [architecture](docs/architecture.md) for command boundaries, stream contracts, and workflow invariants.
 
@@ -289,14 +292,27 @@ The [scheduler recipes](docs/workflow-scheduling.md) cover systemd, cron, and la
 They schedule only polling; upload remains a foreground action while physical wake is required.
 No command installs jobs or starts a scheduler automatically.
 
-### Desktop reminders — WIP
+### macOS menu bar app
 
-The [desktop workflow proposal](docs/desktop-workflow-design.md) scopes a self-contained SwiftBar integration and records
-live permission and lifecycle findings. It is not yet implemented.
+The optional **My Sign** app checks for changed images, sends desktop notifications, and offers Upload from its menu.
+It reuses the Python workflow and supplies the button prompt immediately before discovery. No SwiftBar or separately
+scheduled polling service is needed.
 
-Desktop helpers and optional dynamic rendering are tracked in the
-[implementation plan](docs/implementation-plan.md#optional-desktop-and-rendering-work). Their design boundaries are defined
-in [architecture](docs/architecture.md#button-prompts-and-desktop-integration).
+Copy [the example configuration](data/desktop.example.toml) into ignored `private/desktop.toml`, then set its device and
+producer arguments. Build and open the app from the checkout root:
+
+```sh
+uv run mysign workflow desktop-build --config private/desktop.toml --output 'private/desktop/My Sign.app'
+open 'private/desktop/My Sign.app'
+```
+
+Local source builds use Apple's command-line tools and apply a local signature automatically. No developer account
+or signing infrastructure is needed. Use **Test notification**, allow notifications, and verify a visible banner before
+using uploads. macOS may require permissions again after rebuilding.
+
+See [desktop setup and recovery](docs/desktop-workflow.md), the [design](docs/desktop-workflow-design.md), and the
+[implementation plan](docs/implementation-plan.md#optional-desktop-and-rendering-work) for the lifecycle contract and
+live hardware validation still required.
 
 ## Development
 

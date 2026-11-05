@@ -1,0 +1,6 @@
+command = ["./private/produce-image"]
+working_directory = ".."
+state_directory = "desktop-state"
+device = "replace-with-your-sign-name-or-uuid"
+interval = 300
+notification_timeout = 15

@@ -61,7 +61,8 @@ lint = "ruff check"
 format = "ruff format"
 typecheck = "ty check"
 test = "pytest"
-check-all = { sequence = ["lint", "typecheck", "test"], ignore_fail = false }
+test-native = "python scripts/test_desktop_native.py"
+check-all = { sequence = ["lint", "typecheck", "test", "test-native"], ignore_fail = false }
 fix-all = { sequence = ["lint --fix", "format"], ignore_fail = false }
 
 [tool.uv]

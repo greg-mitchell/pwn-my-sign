@@ -1,6 +1,6 @@
 # Self-contained desktop workflow
 
-Status: implementation in progress. The native-app decision below supersedes the SwiftBar proposal retained afterward.
+Status: implemented; live hardware acceptance pending. The native decision supersedes the SwiftBar proposal below.
 
 ## Revised decision: one locally built menu bar app
 
@@ -15,6 +15,15 @@ Use a small Swift/AppKit menu bar application with one Python `mysign workflow d
 The app owns native menus, notification authorization/submission, a Test Notification action, bounded diagnostic logs,
 and process lifetime. Python owns configuration, polling, reminder history, workflow state, and uploads. Existing
 one-shot commands, snapshot semantics, and the verified BLE wire format remain authoritative.
+
+```mermaid
+flowchart LR
+    App[Native menu and notifications] -->|actions and notification acknowledgments| Python[Python desktop loop]
+    Python -->|views and notification requests| App
+    Python -->|existing poll operation| Producer[Explicit PNG producer]
+    Python -->|snapshots and completed transfer records| State[Workflow image state]
+    Python -->|existing BLE sender| Sign[E-paper sign]
+```
 
 This replaces the SwiftBar plugin and separate upload companion. Do not implement their menu stream format,
 LaunchServices request files, independently surviving upload attempts, PID/status polling, or reattachment protocol.
@@ -62,6 +71,11 @@ an acceptance check; the earlier companion probe established scanning, not trans
 
 The units are serialized dependencies in a short review stack. Use injected dependencies, no subprocesses/threads/
 network/Bluetooth in unit tests, and the repository's lint, strict type, and full test gates for each unit.
+
+Implementation validation: lint, strict types, 711 Python tests, 70 native tests, and every pre-commit hook pass.
+The real-process offline smoke covers polling, reminder deduplication, Check, an already-sent upload skip, parent EOF,
+and lock cleanup. The locally built/signed app launched and its Python child polled the fixture successfully.
+The installed app's visible notification check and the hardware/lifecycle checks above remain live acceptance gates.
 
 ## Superseded SwiftBar proposal and investigation
 
