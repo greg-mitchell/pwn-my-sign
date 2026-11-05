@@ -102,6 +102,11 @@ no service or scheduled job was installed during validation.
 
 ## Optional desktop and rendering work
 
-Start with the foreground terminal. Evaluate a notification or SwiftBar plugin before building a native menu bar utility.
-Any helper observes local workflow state and invokes the existing uploader; it owns neither parsing nor image encoding.
-Native packaging, permissions, notification authorization, and menu actions remain WIP.
+The [desktop workflow proposal](desktop-workflow-design.md) scopes a self-contained streamable SwiftBar plugin and
+records live investigation findings. A companion app successfully hosted a Bluetooth scan after direct plugin access
+reproduced a macOS privacy abort. Menu actions, visible notifications, permission lifecycle, and real uploads remain
+acceptance gates. The desktop workflow is not implemented.
+
+The helper reuses the existing poller and uploader and owns neither source interpretation nor image encoding.
+It introduces an explicit desktop-only polling loop; it installs no separate scheduler. Native menu bar UI and dynamic
+rendering remain outside this scope.

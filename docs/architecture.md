@@ -107,3 +107,7 @@ physical display confirmation remains separate.
 Scheduler installation, background helpers, and desktop notifications require explicit setup. They are not side effects
 of installing or invoking an ordinary command. Convenience options are tracked in the
 [implementation plan](implementation-plan.md#optional-desktop-and-rendering-work).
+
+The [desktop workflow proposal](desktop-workflow-design.md) describes a self-contained SwiftBar integration, including
+an explicit exception for desktop-owned periodic polling and a companion app for Bluetooth permission isolation.
+It records exploratory findings and remaining acceptance gates; this integration is not implemented.

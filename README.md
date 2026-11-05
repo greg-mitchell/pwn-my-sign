@@ -291,6 +291,9 @@ No command installs jobs or starts a scheduler automatically.
 
 ### Desktop reminders — WIP
 
+The [desktop workflow proposal](docs/desktop-workflow-design.md) scopes a self-contained SwiftBar integration and records
+live permission and lifecycle findings. It is not yet implemented.
+
 Desktop helpers and optional dynamic rendering are tracked in the
 [implementation plan](docs/implementation-plan.md#optional-desktop-and-rendering-work). Their design boundaries are defined
 in [architecture](docs/architecture.md#button-prompts-and-desktop-integration).
