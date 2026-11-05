@@ -26,8 +26,8 @@ final class DesktopApplication: NSObject, NSApplicationDelegate {
     private var input: Pipe?
     private var output: Pipe?
     private var diagnostics: Pipe?
-    private var outputReader: (any DispatchSourceRead)?
-    private var diagnosticReader: (any DispatchSourceRead)?
+    private var outputReader: PipeReader?
+    private var diagnosticReader: PipeReader?
     private var exitStatus: Int32?
     private var exitWasExpected = false
     private var framing = LineFramer()
@@ -125,23 +125,12 @@ final class DesktopApplication: NSObject, NSApplicationDelegate {
         render()
     }
 
-    private func reader(_ handle: FileHandle, stream: ChildStream, session: String) -> any DispatchSourceRead {
-        let source = DispatchSource.makeReadSource(fileDescriptor: handle.fileDescriptor, queue: .main)
-        source.setEventHandler { [weak self] in
-            // The source's main queue preserves byte/EOF order without asynchronous actor handoffs.
-            MainActor.assumeIsolated {
-                guard let self, self.lifecycle.session == session else { return }
-                let bytes = handle.availableData
-                if bytes.isEmpty {
-                    if stream == .stdout { self.outputReader?.cancel() }
-                    else { self.diagnosticReader?.cancel() }
-                }
-                if stream == .stdout { self.receive(bytes, session: session) }
-                else { self.record(bytes, session: session) }
-            }
+    private func reader(_ handle: FileHandle, stream: ChildStream, session: String) -> PipeReader {
+        PipeReader(handle: handle) { [weak self] bytes in
+            guard let self, self.lifecycle.session == session else { return }
+            if stream == .stdout { self.receive(bytes, session: session) }
+            else { self.record(bytes, session: session) }
         }
-        source.resume()
-        return source
     }
 
     private func receive(_ bytes: Data, session: String) {
@@ -180,8 +169,10 @@ final class DesktopApplication: NSObject, NSApplicationDelegate {
         render()
         notifications.send(notification, isCurrent: { [weak self] in
             self?.lifecycle.canInteract(with: session) == true
+                && self?.menuState.isNotificationPending(notification.id) == true
         }) { [weak self] acknowledgment in
-            guard let self, self.lifecycle.canInteract(with: session) else { return }
+            guard let self, self.lifecycle.canInteract(with: session),
+                  self.menuState.isNotificationPending(notification.id) else { return }
             if self.send(acknowledgment, session: session) {
                 self.menuState.finishNotification(notification.id)
                 self.render()
@@ -236,13 +227,13 @@ final class DesktopApplication: NSObject, NSApplicationDelegate {
     }
 
     private func closePipes() {
-        outputReader?.cancel()
-        diagnosticReader?.cancel()
+        if let outputReader { outputReader.cancel() }
+        else { try? output?.fileHandleForReading.close() }
+        if let diagnosticReader { diagnosticReader.cancel() }
+        else { try? diagnostics?.fileHandleForReading.close() }
         outputReader = nil
         diagnosticReader = nil
         try? input?.fileHandleForWriting.close()
-        try? output?.fileHandleForReading.close()
-        try? diagnostics?.fileHandleForReading.close()
         input = nil
         output = nil
         diagnostics = nil

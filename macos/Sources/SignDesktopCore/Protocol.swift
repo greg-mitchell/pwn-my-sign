@@ -167,7 +167,7 @@ public func encodeRecord<T: Encodable>(_ record: T) throws -> Data {
     let encoder = JSONEncoder()
     encoder.outputFormatting = [.sortedKeys, .withoutEscapingSlashes]
     var data = try encoder.encode(record)
-    guard data.count <= 16 * 1024 else { throw DesktopProtocolError.recordTooLarge }
     data.append(10)
+    guard data.count <= 16 * 1024 else { throw DesktopProtocolError.recordTooLarge }
     return data
 }

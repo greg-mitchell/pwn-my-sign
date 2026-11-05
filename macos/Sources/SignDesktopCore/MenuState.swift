@@ -13,11 +13,17 @@ public struct MenuState {
         pendingNotifications.remove(id)
     }
 
+    public func isNotificationPending(_ id: String) -> Bool {
+        pendingNotifications.contains(id)
+    }
+
     @discardableResult
     public mutating func receive(_ next: WorkflowView) -> Bool {
         guard next.revision > (view?.revision ?? -1) else { return false }
         view = next
         awaitingView = false
+        // Python publishes a newer view only after its synchronous notification wait ends.
+        pendingNotifications.removeAll()
         return true
     }
 

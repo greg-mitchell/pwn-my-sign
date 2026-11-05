@@ -34,14 +34,28 @@ func test_finishNotification_when_different_request_pending_returns_actions_disa
     #expect(!menu.canUpload)
 }
 
-@Test
-func test_receive_when_notification_pending_returns_actions_still_disabled() {
+@Test(arguments: [MenuAction.upload, .check])
+func test_receive_when_notification_times_out_returns_actions_enabled(_ action: MenuAction) {
     var menu = MenuState()
+    menu.receive(WorkflowView(revision: 3, phase: .waitingForButton, message: "Press the button"))
+    menu.beginNotification("button-7")
+
+    menu.receive(WorkflowView(
+        revision: 4, phase: .uploadFailed, message: "Notification timed out", uploadAvailable: true
+    ))
+
+    #expect(action == .upload ? menu.canUpload : menu.canCheck)
+}
+
+@Test
+func test_receive_when_view_older_than_pending_notification_returns_actions_disabled() {
+    var menu = MenuState()
+    menu.receive(WorkflowView(revision: 4, phase: .updateAvailable, message: "Update ready", uploadAvailable: true))
     menu.beginNotification("update-7")
 
-    menu.receive(WorkflowView(revision: 4, phase: .updateAvailable, message: "Update ready", uploadAvailable: true))
+    menu.receive(WorkflowView(revision: 3, phase: .upToDate, message: "Old view"))
 
-    #expect(!menu.canUpload)
+    #expect(!menu.canCheck)
 }
 
 @Test
@@ -129,4 +143,35 @@ func test_take_when_no_view_arrived_returns_no_action() {
     let action = menu.take(.check)
 
     #expect(action == nil)
+}
+
+@Test
+func test_isNotificationPending_when_request_begins_returns_true() {
+    var menu = MenuState()
+
+    menu.beginNotification("button-7")
+
+    #expect(menu.isNotificationPending("button-7"))
+}
+
+@Test
+func test_isNotificationPending_when_request_finishes_returns_false() {
+    var menu = MenuState()
+    menu.beginNotification("button-7")
+
+    menu.finishNotification("button-7")
+
+    #expect(!menu.isNotificationPending("button-7"))
+}
+
+@Test
+func test_receive_when_revision_repeated_returns_notification_still_pending() {
+    var menu = MenuState()
+    let view = WorkflowView(revision: 3, phase: .waitingForButton, message: "Press the button")
+    menu.receive(view)
+    menu.beginNotification("button-7")
+
+    menu.receive(view)
+
+    #expect(menu.isNotificationPending("button-7"))
 }

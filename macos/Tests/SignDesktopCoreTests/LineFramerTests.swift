@@ -37,7 +37,7 @@ func test_append_when_record_exceeds_limit_raises_size_error() throws {
     var framing = LineFramer(maximumBytes: 5)
 
     #expect(throws: DesktopProtocolError.recordTooLarge) {
-        try framing.append(Data("123456\n".utf8))
+        try framing.append(Data("12345\n".utf8))
     }
 }
 
@@ -45,9 +45,9 @@ func test_append_when_record_exceeds_limit_raises_size_error() throws {
 func test_append_when_record_matches_limit_returns_record() throws {
     var framing = LineFramer(maximumBytes: 5)
 
-    let records = try framing.append(Data("12345\n".utf8))
+    let records = try framing.append(Data("1234\n".utf8))
 
-    #expect(records == [Data("12345".utf8)])
+    #expect(records == [Data("1234".utf8)])
 }
 
 @Test
@@ -66,4 +66,24 @@ func test_finish_when_records_complete_returns_without_error() throws {
     _ = try framing.append(Data("complete\n".utf8))
 
     #expect(throws: Never.self) { try framing.finish() }
+}
+
+@Test
+func test_append_when_record_including_lf_matches_default_limit_returns_record() throws {
+    var framing = LineFramer()
+    let body = Data(repeating: 120, count: 16 * 1024 - 1)
+
+    let records = try framing.append(body + Data([10]))
+
+    #expect(records == [body])
+}
+
+@Test
+func test_append_when_record_including_lf_exceeds_default_limit_raises_size_error() {
+    var framing = LineFramer()
+    let record = Data(repeating: 120, count: 16 * 1024) + Data([10])
+
+    #expect(throws: DesktopProtocolError.recordTooLarge) {
+        try framing.append(record)
+    }
 }

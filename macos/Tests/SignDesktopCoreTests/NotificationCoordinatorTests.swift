@@ -223,3 +223,83 @@ func test_send_when_error_changes_calls_status_listener() {
 
     #expect(changes == 1)
 }
+
+@Test @MainActor
+func test_authorizationCallback_when_workflow_advanced_calls_no_submission() {
+    let client = FakeNotifications()
+    client.permission = .notDetermined
+    client.deferAuthorization = true
+    let coordinator = NotificationCoordinator(client: client)
+    var menu = MenuState()
+    menu.receive(WorkflowView(revision: 3, phase: .waitingForButton, message: "Press the button"))
+    menu.beginNotification(buttonRequest.id)
+    coordinator.send(buttonRequest, isCurrent: { menu.isNotificationPending(buttonRequest.id) }) { _ in }
+    menu.receive(WorkflowView(revision: 4, phase: .uploadFailed, message: "Notification timed out"))
+    client.permission = .authorized
+
+    client.authorizationCallbacks[0](nil)
+
+    #expect(client.submissions.isEmpty)
+}
+
+@Test @MainActor
+func test_authorizationCallback_when_workflow_advanced_calls_no_acknowledgment() {
+    let client = FakeNotifications()
+    client.permission = .notDetermined
+    client.deferAuthorization = true
+    let coordinator = NotificationCoordinator(client: client)
+    var acknowledgments: [NotificationAcknowledgment] = []
+    var menu = MenuState()
+    menu.receive(WorkflowView(revision: 3, phase: .waitingForButton, message: "Press the button"))
+    menu.beginNotification(buttonRequest.id)
+    coordinator.send(
+        buttonRequest, isCurrent: { menu.isNotificationPending(buttonRequest.id) },
+        completion: { acknowledgments.append($0) }
+    )
+    menu.receive(WorkflowView(revision: 4, phase: .uploadFailed, message: "Notification timed out"))
+    client.permission = .authorized
+
+    client.authorizationCallbacks[0](nil)
+
+    #expect(acknowledgments.isEmpty)
+}
+
+@Test @MainActor
+func test_submissionCallback_when_workflow_advanced_calls_no_acknowledgment() {
+    let client = FakeNotifications()
+    client.deferSubmission = true
+    let coordinator = NotificationCoordinator(client: client)
+    var acknowledgments: [NotificationAcknowledgment] = []
+    var menu = MenuState()
+    menu.receive(WorkflowView(revision: 3, phase: .waitingForButton, message: "Press the button"))
+    menu.beginNotification(buttonRequest.id)
+    coordinator.send(
+        buttonRequest, isCurrent: { menu.isNotificationPending(buttonRequest.id) },
+        completion: { acknowledgments.append($0) }
+    )
+    menu.receive(WorkflowView(revision: 4, phase: .uploadFailed, message: "Notification timed out"))
+
+    client.submissionCallbacks[0](nil)
+
+    #expect(acknowledgments.isEmpty)
+}
+
+@Test @MainActor
+func test_authorizationCallback_when_workflow_advanced_calls_independent_test_submission() {
+    let client = FakeNotifications()
+    client.permission = .notDetermined
+    client.deferAuthorization = true
+    let coordinator = NotificationCoordinator(client: client)
+    let testRequest = DesktopNotification(id: "test-8", kind: .updateAvailable, title: "Test", body: "Works")
+    var menu = MenuState()
+    menu.receive(WorkflowView(revision: 3, phase: .waitingForButton, message: "Press the button"))
+    menu.beginNotification(buttonRequest.id)
+    coordinator.send(buttonRequest, isCurrent: { menu.isNotificationPending(buttonRequest.id) }) { _ in }
+    coordinator.send(testRequest, isCurrent: { true }) { _ in }
+    menu.receive(WorkflowView(revision: 4, phase: .uploadFailed, message: "Notification timed out"))
+    client.permission = .authorized
+
+    client.authorizationCallbacks.forEach { $0(nil) }
+
+    #expect(client.submissions == [testRequest])
+}

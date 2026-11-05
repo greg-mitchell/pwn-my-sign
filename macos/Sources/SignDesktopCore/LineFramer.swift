@@ -11,14 +11,14 @@ public struct LineFramer {
     public mutating func append(_ data: Data) throws -> [Data] {
         var records: [Data] = []
         for byte in data {
+            guard partial.count < maximumBytes else {
+                partial.removeAll(keepingCapacity: false)
+                throw DesktopProtocolError.recordTooLarge
+            }
             if byte == 10 {
                 records.append(partial)
                 partial.removeAll(keepingCapacity: true)
             } else {
-                guard partial.count < maximumBytes else {
-                    partial.removeAll(keepingCapacity: false)
-                    throw DesktopProtocolError.recordTooLarge
-                }
                 partial.append(byte)
             }
         }

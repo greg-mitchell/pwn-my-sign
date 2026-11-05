@@ -90,3 +90,21 @@ func test_encode_when_record_oversized_raises_size_error() {
         try encodeRecord(text)
     }
 }
+
+@Test
+func test_encode_when_record_including_lf_matches_limit_returns_complete_record() throws {
+    let text = String(repeating: "x", count: 16 * 1024 - 3)
+
+    let record = try encodeRecord(text)
+
+    #expect(record == Data(([34] + Array(repeating: 120, count: 16 * 1024 - 3) + [34, 10])))
+}
+
+@Test
+func test_encode_when_record_including_lf_exceeds_limit_raises_size_error() {
+    let text = String(repeating: "x", count: 16 * 1024 - 2)
+
+    #expect(throws: DesktopProtocolError.recordTooLarge) {
+        try encodeRecord(text)
+    }
+}
