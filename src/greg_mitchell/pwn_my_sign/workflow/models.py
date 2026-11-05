@@ -9,6 +9,7 @@ class WorkflowKind(StrEnum):
     POLL = "poll"
     UPLOAD = "upload"
     WATCH = "watch"
+    DESKTOP = "desktop"
 
 
 class UploadOutcome(StrEnum):
