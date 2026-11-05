@@ -40,8 +40,10 @@ final class DesktopApplication: NSObject, NSApplicationDelegate {
     private let notifications = NotificationCoordinator(client: NativeNotifications())
 
     func applicationDidFinishLaunching(_ notification: Notification) {
-        item = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
-        item?.button?.title = "Sign"
+        item = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
+        item?.button?.image = MenuBarIcon.make()
+        item?.button?.imagePosition = .imageOnly
+        item?.button?.setAccessibilityLabel("My Sign")
         item?.button?.toolTip = "Sign image workflow"
         notifications.onStatusChange = { [weak self] in self?.render() }
         let workspace = NSWorkspace.shared.notificationCenter
