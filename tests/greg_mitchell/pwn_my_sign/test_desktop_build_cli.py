@@ -7,14 +7,13 @@ from click.testing import CliRunner
 
 from greg_mitchell.pwn_my_sign.cli.workflow_desktop_build import desktop_build
 from greg_mitchell.pwn_my_sign.desktop.build import DesktopAppBuilder
+from greg_mitchell.pwn_my_sign.desktop.config import load_settings
 
 
 @pytest.fixture
 def configuration(tmp_path: Path) -> Path:
     path = tmp_path / 'desktop.toml'
-    path.write_text(
-        'command = ["./producer"]\nworking_directory = "."\nstate_directory = "state"\ndevice = "test sign"\n'
-    )
+    path.write_text('command = ["./producer"]\ndevice = "test sign"\n')
     return path
 
 
@@ -80,3 +79,14 @@ def test_desktop_build_when_help_requested_returns_success_without_build(builder
     result = CliRunner().invoke(desktop_build, ['--help'], obj=builder)
 
     assert result.exit_code == 0
+
+
+def test_load_settings_when_example_copied_to_private_returns_private_producer(tmp_path: Path) -> None:
+    example = Path(__file__).resolve().parents[3] / 'data/desktop.example.toml'
+    configuration = tmp_path / 'private/desktop.toml'
+    configuration.parent.mkdir()
+    configuration.write_bytes(example.read_bytes())
+
+    result = load_settings(configuration)
+
+    assert result.command == (str(tmp_path / 'private/produce-image'),)

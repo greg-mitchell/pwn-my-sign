@@ -112,8 +112,13 @@ and the native app/local build/setup. The controller reuses the existing poller 
 policy or image encoding, and installs no separate scheduler. The native app owns menus, notification settings and
 submission, and cancellation of its child during quit/sleep. Local builds apply a local signature automatically.
 
-Validation: lint, strict types, 711 Python tests, 72 native tests, and all pre-commit hooks pass. A real-process offline
+Review follow-up: terminal and desktop commands share XDG state defaults. Desktop directories support `~`, and explicit
+overrides require absolute paths. Immutable workflow state and a declarative transition/effect table replace controller
+branching; a buffered reader and bounded queue replace manual pipe framing. Workflow and Bluetooth stay on the main thread.
+
+Validation: lint, strict types, 779 Python tests, 72 native tests, and all pre-commit hooks pass. A real-process offline
 smoke checked polling, notification deduplication, menu actions, already-sent upload skipping, EOF, and lock cleanup.
+Reader lifecycle checks cover already-closed startup input, partial lines, queue backpressure, and producer cancellation.
 The actual local app built, signed, launched, and polled its offline fixture through the Python child. The user
 confirmed its up-to-date menu and visible Test notification banner after permission was granted.
 

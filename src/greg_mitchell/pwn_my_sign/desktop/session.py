@@ -10,7 +10,6 @@ from greg_mitchell.pwn_my_sign.desktop.protocol import (
     Phase,
     View,
 )
-from greg_mitchell.pwn_my_sign.device.events import UploadEvent
 
 
 def notification_id() -> str:
@@ -91,21 +90,3 @@ class DesktopSession:
             if not message.submitted:
                 raise NotificationError(message.error or "Notification submission was denied.")
             return
-
-    def on_upload_event(self, event: UploadEvent) -> None:
-        """Publish typed boundaries and gate discovery on the button notification."""
-        if event == UploadEvent.WAITING_FOR_BUTTON:
-            self.show(
-                Phase.WAITING_FOR_BUTTON,
-                "Press the sign's button now.",
-                last_check=self.view.last_check,
-                last_result=self.view.last_result,
-            )
-            self.notify(NotificationKind.BUTTON, "Sign ready to upload", "Press the sign's button now.")
-        else:
-            self.show(
-                Phase.SENDING,
-                "Sending image to the sign.",
-                last_check=self.view.last_check,
-                last_result=self.view.last_result,
-            )

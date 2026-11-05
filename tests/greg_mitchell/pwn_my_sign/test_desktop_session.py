@@ -16,7 +16,6 @@ from greg_mitchell.pwn_my_sign.desktop.protocol import (
     View,
 )
 from greg_mitchell.pwn_my_sign.desktop.session import DesktopSession, NotificationError
-from greg_mitchell.pwn_my_sign.device.events import UploadEvent
 
 
 @pytest.fixture
@@ -131,22 +130,3 @@ def test_notify_when_parent_closes_raises_eof_error(session: DesktopSession, rea
 
     with pytest.raises(EOFError):
         session.notify(NotificationKind.BUTTON, "Ready", "Press the button.")
-
-
-def test_on_upload_event_when_waiting_returns_button_phase(session: DesktopSession) -> None:
-    session.on_upload_event(UploadEvent.WAITING_FOR_BUTTON)
-
-    assert session.view.phase == Phase.WAITING_FOR_BUTTON
-
-
-def test_on_upload_event_when_button_notification_fails_raises_error(session: DesktopSession, reader: Mock) -> None:
-    reader.receive.return_value = Acknowledgment(version=1, id="request-1", submitted=False, error="Permission denied")
-
-    with pytest.raises(NotificationError, match="Permission denied"):
-        session.on_upload_event(UploadEvent.WAITING_FOR_BUTTON)
-
-
-def test_on_upload_event_when_connected_returns_sending_phase(session: DesktopSession) -> None:
-    session.on_upload_event(UploadEvent.SENDING)
-
-    assert session.view.phase == Phase.SENDING

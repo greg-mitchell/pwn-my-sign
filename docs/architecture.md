@@ -69,7 +69,10 @@ Commands that compose pipelines must propagate upstream failures themselves. One
 Interruption terminates and reaps the producer process group before releasing locks, escalating to SIGKILL after
 a five-second grace period. No producer-specific retry loop is embedded; the watcher retries at its normal interval.
 
-Keep workflow artifacts in an explicitly selected state directory:
+Workflow commands default to `${XDG_STATE_HOME:-$HOME/.local/state}/pwn-my-sign/display`; an empty or relative XDG
+value falls back to the home location. Terminal `--state` and desktop `state_directory` select an override. All
+operations for a sign must use the same directory; select a different directory for each additional sign.
+Keep these workflow artifacts in that directory:
 
 | Artifact | Meaning |
 | --- | --- |

@@ -77,8 +77,8 @@ class DesktopHarness:
         return message()
 
     def send(self, image: bytes, settings: UploadSettings, report: Callable[[str], None]) -> None:
-        self.session.on_upload_event(UploadEvent.WAITING_FOR_BUTTON)
-        self.session.on_upload_event(UploadEvent.SENDING)
+        self.controller.on_upload_event(UploadEvent.WAITING_FOR_BUTTON, self.settings)
+        self.controller.on_upload_event(UploadEvent.SENDING, self.settings)
 
     def notifications(self) -> tuple[Notification, ...]:
         return tuple(item.args[0] for item in self.writer.send.call_args_list if isinstance(item.args[0], Notification))

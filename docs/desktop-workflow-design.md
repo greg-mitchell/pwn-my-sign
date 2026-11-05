@@ -38,7 +38,12 @@ an acceptance check; the earlier companion probe established scanning, not trans
   Polls and uploads are synchronous in that child; the native menu stays responsive and disables workflow actions
   while busy. Do not replay intervals missed during sleep or transfer.
 - User actions identify the current view revision. Disable Upload immediately on click and reject stale buffered
-  actions. Use one byte-framed input reader; buffered text readers combined with select can hide ready messages.
+  actions. Use one privately buffered input reader feeding a bounded queue, with Pydantic validation and receive
+  deadlines on the main thread. Detect parent EOF independently of reader scheduling before starting new polls.
+- Make allowed transitions and ordered effects explicit in a declarative table over immutable workflow state.
+  Views project that state; the session owns only protocol revisions and notification acknowledgment handling.
+- Default terminal and desktop state to `${XDG_STATE_HOME:-$HOME/.local/state}/pwn-my-sign/display`. Desktop producer
+  working directory defaults to the config directory; explicit directory overrides must be absolute after expanding `~`.
 - Inject typed device boundaries after validation/before discovery and after connection. Before discovery emit the
   waiting view and button notification request, then wait a bounded time for the native app to confirm successful
   submission. Denial, EOF, or timeout prevents scanning. Acknowledgment means submission, never visible delivery.
@@ -72,9 +77,10 @@ an acceptance check; the earlier companion probe established scanning, not trans
 The units are serialized dependencies in a short review stack. Use injected dependencies, no subprocesses/threads/
 network/Bluetooth in unit tests, and the repository's lint, strict type, and full test gates for each unit.
 
-Implementation validation: lint, strict types, 711 Python tests, 72 native tests, and every pre-commit hook pass.
+Implementation validation: lint, strict types, 779 Python tests, 72 native tests, and every pre-commit hook pass.
 The real-process offline smoke covers polling, reminder deduplication, Check, an already-sent upload skip, parent EOF,
-and lock cleanup. The locally built/signed app launched and its Python child polled the fixture successfully. The user
+and lock cleanup. Additional reader smoke checks cover startup EOF, SIGTERM with partial input, queue backpressure,
+and active producer cancellation. The locally built/signed app launched and its Python child polled the fixture. The user
 confirmed the actual app's up-to-date menu and visible Test notification banner after granting permission.
 The hardware/lifecycle checks above remain live acceptance gates.
 

@@ -1,4 +1,5 @@
 import signal
+from contextlib import chdir
 from pathlib import Path
 from unittest.mock import Mock, call
 
@@ -27,6 +28,91 @@ def test_poll_when_options_selected_calls_workflow_with_settings() -> None:
     )
 
     operations.poll.assert_called_once_with(PollSettings(image_path=Path("image with spaces.png")))
+
+
+def test_poll_when_state_omitted_calls_workflow_with_settings() -> None:
+    operations = Mock(spec=WorkflowOperations)
+
+    CliRunner().invoke(poll, ["--image", "card.png"], obj=operations, catch_exceptions=False)
+
+    operations.poll.assert_called_once_with(PollSettings(image_path=Path("card.png")))
+
+
+def test_upload_when_state_omitted_calls_workflow_with_settings() -> None:
+    operations = Mock(spec=WorkflowOperations)
+
+    CliRunner().invoke(upload, ["--device", "test sign"], obj=operations, catch_exceptions=False)
+
+    operations.upload.assert_called_once_with(UploadSettings(device="test sign"))
+
+
+def test_watch_when_state_omitted_calls_watcher_with_settings() -> None:
+    watcher = Mock(spec=Watcher)
+
+    CliRunner().invoke(watch, ["--device", "test sign", "--", "producer"], obj=watcher, catch_exceptions=False)
+
+    watcher.run.assert_called_once_with(
+        WatchSettings(poll=PollSettings(command=("producer",)), upload=UploadSettings(device="test sign"))
+    )
+
+
+def test_poll_when_state_omitted_returns_pending_image_in_xdg_directory(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("XDG_STATE_HOME", str(tmp_path / "state-home"))
+    image_path = Path("tests/fixtures/cards/title-only.png").resolve()
+    runner = CliRunner()
+
+    with chdir(tmp_path):
+        runner.invoke(poll, ["--image", str(image_path)], catch_exceptions=False)
+
+    assert (tmp_path / "state-home/pwn-my-sign/display/pending.png").read_bytes() == image_path.read_bytes()
+
+
+def test_poll_when_state_uses_home_returns_pending_image_in_expanded_directory(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("HOME", str(tmp_path / "home"))
+    image_path = Path("tests/fixtures/cards/title-only.png").resolve()
+    runner = CliRunner()
+
+    with chdir(tmp_path):
+        runner.invoke(poll, ["--state", "~/sign-state", "--image", str(image_path)], catch_exceptions=False)
+
+    assert (tmp_path / "home/sign-state/pending.png").read_bytes() == image_path.read_bytes()
+
+
+@pytest.mark.parametrize(
+    ("command", "arguments", "lock"),
+    [
+        (poll, ["--image", "unused.png"], "poll.lock"),
+        (upload, ["--device", "test sign"], "upload.lock"),
+        (watch, ["--device", "test sign", "--", "unused-producer"], "watch.lock"),
+    ],
+)
+@pytest.mark.parametrize("state_option", [None, "~/sign-state", "relative-state"])
+def test_command_when_state_directory_locked_returns_selected_directory_diagnostic(
+    command: click.Command,
+    arguments: list[str],
+    lock: str,
+    state_option: str | None,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("HOME", str(tmp_path / "home"))
+    monkeypatch.setenv("XDG_STATE_HOME", str(tmp_path / "state-home"))
+    selected = {
+        None: tmp_path / "state-home/pwn-my-sign/display",
+        "~/sign-state": tmp_path / "home/sign-state",
+        "relative-state": Path("relative-state"),
+    }[state_option]
+    (tmp_path / selected / lock).mkdir(parents=True)
+    options = ["--state", state_option] if state_option is not None else []
+
+    with chdir(tmp_path):
+        result = CliRunner().invoke(command, [*options, *arguments], catch_exceptions=False)
+
+    assert result.stderr == f"Error: Cannot acquire {selected / lock}; another workflow may be running.\n"
 
 
 def test_poll_when_producer_selected_calls_workflow_with_literal_arguments() -> None:

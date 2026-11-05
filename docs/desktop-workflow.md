@@ -21,10 +21,14 @@ notarization service are unnecessary for a local build. The build command applie
    ```
 
 3. Edit `device` to the name or UUID found by `mysign device scan`. Set `command` to your producer's literal arguments.
-   Paths for `working_directory` and `state_directory` resolve relative to the configuration file. The producer
-   executable resolves relative to `working_directory`; the example copied into `private/` uses the checkout root and
-   `private/produce-image`. Other producer arguments remain literal. Use absolute paths to assets and other executables
-   inside producer scripts, without depending on shell startup files or an activated environment.
+   Omitted `working_directory` uses the configuration file's directory, so the copied example runs
+   `private/produce-image`. Omitted `state_directory` uses `${XDG_STATE_HOME:-$HOME/.local/state}/pwn-my-sign/display`,
+   the same default as terminal poll/upload/watch commands. Empty or relative XDG values use the home fallback.
+   Optional directory overrides must be absolute after expanding `~`; relative overrides are rejected. The producer
+   executable resolves against `working_directory` and expands `~`; other arguments remain literal. Use absolute paths
+   to assets and other executables inside producer scripts, without depending on shell startup files or an activated
+   environment. If the terminal sets `XDG_STATE_HOME` only in a shell startup file, set the same absolute
+   `state_directory` explicitly for the app to share its state when launched from Finder.
 4. Build and open the app from the checkout root:
 
    ```sh

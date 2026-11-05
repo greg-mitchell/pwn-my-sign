@@ -1,4 +1,5 @@
 from collections.abc import Callable
+from contextlib import nullcontext
 from pathlib import Path
 from subprocess import DEVNULL, PIPE, Popen
 from unittest.mock import MagicMock, Mock
@@ -23,8 +24,8 @@ def config(tmp_path: Path) -> Path:
     path.parent.mkdir()
     path.write_text(
         'command = ["private/producer", "literal; $(argument)"]\n'
-        'working_directory = ".."\n'
-        'state_directory = "workflow-state"\n'
+        f'working_directory = "{tmp_path}"\n'
+        f'state_directory = "{tmp_path / "private/workflow-state"}"\n'
         'device = "test sign"\n'
         'interval = 30\n'
         'notification_timeout = 7\n'
@@ -32,7 +33,7 @@ def config(tmp_path: Path) -> Path:
     return path
 
 
-def test_load_settings_when_paths_relative_returns_explicit_resolved_settings(config: Path, tmp_path: Path) -> None:
+def test_load_settings_when_paths_absolute_returns_explicit_resolved_settings(config: Path, tmp_path: Path) -> None:
     result = load_settings(config)
 
     assert result == DesktopSettings(
@@ -51,7 +52,7 @@ def test_load_settings_when_file_missing_raises_read_error(tmp_path: Path) -> No
 
 
 def test_run_when_configured_calls_controller_factory_with_resolved_settings(config: Path, tmp_path: Path) -> None:
-    create = Mock(spec=Callable, return_value=Mock(spec=DesktopController))
+    create = Mock(spec=Callable, return_value=nullcontext(Mock(spec=DesktopController)))
 
     DesktopRuntime(create).run(config)
 
@@ -70,7 +71,7 @@ def test_run_when_configured_calls_controller_factory_with_resolved_settings(con
 def test_run_when_configured_calls_controller_with_resolved_settings(config: Path) -> None:
     controller = Mock(spec=DesktopController)
 
-    DesktopRuntime(Mock(spec=Callable, return_value=controller)).run(config)
+    DesktopRuntime(Mock(spec=Callable, return_value=nullcontext(controller))).run(config)
 
     controller.run.assert_called_once_with(load_settings(config))
 
@@ -79,7 +80,7 @@ def test_run_when_controller_fails_raises_error(config: Path) -> None:
     controller = Mock(spec=DesktopController, **{"run.side_effect": OSError("Cannot start controller")})
 
     with pytest.raises(OSError, match="Cannot start controller"):
-        DesktopRuntime(Mock(spec=Callable, return_value=controller)).run(config)
+        DesktopRuntime(Mock(spec=Callable, return_value=nullcontext(controller))).run(config)
 
 
 def test_command_producer_when_working_directory_configured_calls_spawn_with_explicit_cwd(tmp_path: Path) -> None:

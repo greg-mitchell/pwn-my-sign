@@ -7,12 +7,19 @@ from bleak.exc import BleakError
 
 from greg_mitchell.pwn_my_sign.cli.workflow_runtime import report, workflow
 from greg_mitchell.pwn_my_sign.workflow.models import PollSettings, UploadSettings, WatchSettings
+from greg_mitchell.pwn_my_sign.workflow.paths import default_state_directory
 from greg_mitchell.pwn_my_sign.workflow.terminal import TerminalInput
 from greg_mitchell.pwn_my_sign.workflow.watch import Watcher
 
 
 @click.command()
-@click.option("--state", type=click.Path(path_type=Path), required=True, help="Shared state directory for this device.")
+@click.option(
+    "--state",
+    type=click.Path(path_type=Path),
+    default=default_state_directory,
+    show_default="$XDG_STATE_HOME/pwn-my-sign/display or ~/.local/state/pwn-my-sign/display",
+    help="Shared state directory for this device.",
+)
 @click.option("--device", required=True, help="Exact advertised name or device ID.")
 @click.option("--interval", type=click.IntRange(min=1), default=300, show_default=True)
 @click.argument("command", nargs=-1, required=True, type=click.UNPROCESSED)
@@ -25,6 +32,6 @@ def watch(watcher: Watcher | None, state: Path, device: str, interval: int, comm
             upload=UploadSettings(device=device),
             interval=interval,
         )
-        (watcher or Watcher(workflow(state), TerminalInput(sys.stdin), time.sleep, report)).run(settings)
+        (watcher or Watcher(workflow(state.expanduser()), TerminalInput(sys.stdin), time.sleep, report)).run(settings)
     except (OSError, ValueError, BleakError) as error:
         raise click.ClickException(str(error)) from error
