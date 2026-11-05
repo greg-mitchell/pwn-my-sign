@@ -40,7 +40,7 @@ final class DesktopApplication: NSObject, NSApplicationDelegate {
     private let notifications = NotificationCoordinator(client: NativeNotifications())
 
     func applicationDidFinishLaunching(_ notification: Notification) {
-        item = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
+        item = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
         item?.button?.image = MenuBarIcon.make()
         item?.button?.imagePosition = .imageOnly
         item?.button?.setAccessibilityLabel("My Sign")

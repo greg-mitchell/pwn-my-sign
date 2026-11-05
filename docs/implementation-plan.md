@@ -112,7 +112,7 @@ and the native app/local build/setup. The controller reuses the existing poller 
 policy or image encoding, and installs no separate scheduler. The native app owns menus, notification settings and
 submission, and cancellation of its child during quit/sleep. Local builds apply a local signature automatically.
 
-Validation: lint, strict types, 711 Python tests, 70 native tests, and all pre-commit hooks pass. A real-process offline
+Validation: lint, strict types, 711 Python tests, 72 native tests, and all pre-commit hooks pass. A real-process offline
 smoke checked polling, notification deduplication, menu actions, already-sent upload skipping, EOF, and lock cleanup.
 The actual local app built, signed, launched, and polled its offline fixture through the Python child. The user
 confirmed its up-to-date menu and visible Test notification banner after permission was granted.

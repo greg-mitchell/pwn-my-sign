@@ -2,7 +2,16 @@ import AppKit
 
 enum MenuBarIcon {
     static func make() -> NSImage {
-        let image = NSImage(size: NSSize(width: 18, height: 18), flipped: true) { _ in
+        let image = NSImage(size: NSSize(width: 24, height: 18), flipped: true) { bounds in
+            NSGraphicsContext.saveGraphicsState()
+            defer { NSGraphicsContext.restoreGraphicsState() }
+
+            // Align the visible artwork rather than its uneven transparent padding.
+            let placement = NSAffineTransform()
+            placement.translateX(by: bounds.midX, yBy: bounds.midY)
+            placement.scale(by: 1.3)
+            placement.translateX(by: -9, yBy: -8.75)
+            placement.concat()
             NSColor.black.set()
 
             let frame = NSBezierPath(

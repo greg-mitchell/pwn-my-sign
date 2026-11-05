@@ -9,5 +9,6 @@ let package = Package(
         .target(name: "SignDesktopCore"),
         .executableTarget(name: "SignDesktop", dependencies: ["SignDesktopCore"]),
         .testTarget(name: "SignDesktopCoreTests", dependencies: ["SignDesktopCore"]),
+        .testTarget(name: "SignDesktopTests", dependencies: ["SignDesktop"]),
     ]
 )
