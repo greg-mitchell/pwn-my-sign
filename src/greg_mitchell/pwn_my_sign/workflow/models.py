@@ -11,6 +11,13 @@ class WorkflowKind(StrEnum):
     WATCH = "watch"
 
 
+class UploadOutcome(StrEnum):
+    """Whether a workflow upload skipped or recorded a completed transfer."""
+
+    SKIPPED = "skipped"
+    COMPLETED = "completed"
+
+
 class PollSettings(BaseModel):
     """Explicit inputs for producing a desired image."""
 

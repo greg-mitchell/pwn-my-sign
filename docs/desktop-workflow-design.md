@@ -1,6 +1,72 @@
 # Self-contained desktop workflow
 
-Status: proposal. Investigation performed on 2026-10-27 with macOS 27.0.1 and SwiftBar 2.1.1, build 597.
+Status: implementation in progress. The native-app decision below supersedes the SwiftBar proposal retained afterward.
+
+## Revised decision: one locally built menu bar app
+
+On 2026-11-05 the user prioritized working notifications, simple setup, and local source builds without signing
+infrastructure. A disposable Swift/AppKit application built with the installed command-line tools, ad hoc signed and
+launched through LaunchServices, displayed notifications confirmed by the user, including a menu-triggered retry.
+Its initial authorization callback returned a denial; subsequent settings reported authorized and submission succeeded.
+That initial error was retained in the probe menu. Production must check current settings for each request and replace
+old errors after successful retries; submission alone never proves that a banner appeared.
+
+Use a small Swift/AppKit menu bar application with one Python `mysign workflow desktop --config FILE` child.
+The app owns native menus, notification authorization/submission, a Test Notification action, bounded diagnostic logs,
+and process lifetime. Python owns configuration, polling, reminder history, workflow state, and uploads. Existing
+one-shot commands, snapshot semantics, and the verified BLE wire format remain authoritative.
+
+This replaces the SwiftBar plugin and separate upload companion. Do not implement their menu stream format,
+LaunchServices request files, independently surviving upload attempts, PID/status polling, or reattachment protocol.
+The native parent itself supplies the app permission identity for its Python child. Real Bluetooth upload remains
+an acceptance check; the earlier companion probe established scanning, not transfer completion.
+
+### Process and notification contract
+
+- Exchange bounded newline-delimited JSON records: versioned view updates, notification requests, matching
+  acknowledgments, and user actions. Frozen Pydantic models own Python serialization; native types match the protocol.
+- Use an injected single Python loop. Poll immediately, then wait the configured interval after poll completion.
+  Polls and uploads are synchronous in that child; the native menu stays responsive and disables workflow actions
+  while busy. Do not replay intervals missed during sleep or transfer.
+- User actions identify the current view revision. Disable Upload immediately on click and reject stale buffered
+  actions. Use one byte-framed input reader; buffered text readers combined with select can hide ready messages.
+- Inject typed device boundaries after validation/before discovery and after connection. Before discovery emit the
+  waiting view and button notification request, then wait a bounded time for the native app to confirm successful
+  submission. Denial, EOF, or timeout prevents scanning. Acknowledgment means submission, never visible delivery.
+- Retain one notified unsent-image fingerprint across ordinary restarts, clearing it when up to date. Failed polls
+  show the error; retained images are available only through an explicitly contextual manual upload action.
+- Completion follows successful last-sent publication and lock cleanup. Later notification failure cannot alter
+  completed transfer state. Native notification requests recheck current settings, handle permission and submission
+  errors, and explicitly request foreground banners using UserNotifications.
+
+### Lifecycle and source builds
+
+- A desktop-instance lock prevents duplicate or orphaned controllers; existing poll/upload locks retain their meanings.
+  On startup briefly wait for a previous instance to unwind, without deleting its locks automatically.
+- Normal Quit and sleep send SIGTERM to the child and wait asynchronously for cleanup. On wake wait for that child's
+  actual exit before starting a replacement. Preserve existing producer-group termination and Bluetooth cleanup.
+- A parent crash closes child stdin. Python exits on EOF before another poll and may first finish a running operation.
+  A hung producer or forcibly killed process can leave locks; use existing manual stale-lock recovery.
+- Build one `.app` under ignored `private/` using locally installed Apple command-line tools and automatic ad hoc
+  signing. No Apple account, certificates, notarization service, or distribution pipeline is required for local builds.
+  Use a fixed bundle identifier and app path; permission persistence after rebuilding is not guaranteed.
+- The app depends on the checkout and synced venv. Configuration is explicit and private. Launch at login is an optional
+  manual macOS setting; install no scheduler. Real upload, permission denial, rebuilds, and sleep during transfer remain
+  live acceptance gates. Preserve normal terminal workflows.
+
+### Implementation sequence
+
+1. Add typed device upload boundaries and an explicit workflow upload outcome, preserving terminal behavior.
+2. Add desktop configuration, JSON protocol, persistent reminders, controller/runtime, thin CLI, and behavioral tests.
+3. Add the native menu/notification shell, reproducible local build, native tests, setup/recovery docs, and live smoke checks.
+
+The units are serialized dependencies in a short review stack. Use injected dependencies, no subprocesses/threads/
+network/Bluetooth in unit tests, and the repository's lint, strict type, and full test gates for each unit.
+
+## Superseded SwiftBar proposal and investigation
+
+The following records the 2026-10-27 investigation with macOS 27.0.1 and SwiftBar 2.1.1, build 597. Its SwiftBar-specific
+architecture is historical; the revised native decision above is authoritative.
 
 ## Purpose
 

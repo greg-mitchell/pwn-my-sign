@@ -9,6 +9,7 @@ from bleak.backends.device import BLEDevice
 from bleak.backends.scanner import AdvertisementData
 from PIL import Image
 
+from greg_mitchell.pwn_my_sign.device.events import UploadEvent
 from greg_mitchell.pwn_my_sign.frame_codec import FRAME_BYTES, encode_image
 from greg_mitchell.pwn_my_sign.images.png import load_png
 from greg_mitchell.pwn_my_sign.transport import SERVICE, send_frame
@@ -66,6 +67,7 @@ class DeviceOperations:
         packet_delay: float,
         report: Callable[[str], None],
         image_stream: BinaryIO | None = None,
+        on_event: Callable[[UploadEvent], None] | None = None,
     ) -> None:
         if image_stream is not None:
             if image_path is not None or frame_path is not None:
@@ -93,8 +95,12 @@ class DeviceOperations:
             }
 
         report("Waiting for the selected sign; press its button now.")
+        if on_event is not None:
+            on_event(UploadEvent.WAITING_FOR_BUTTON)
         device = await self.scanner.find_device_by_filter(matches, timeout=timeout)
         if device is None:
             raise TimeoutError("Selected sign was not found before the timeout")
         async with self.client_factory(device) as client:
+            if on_event is not None:
+                on_event(UploadEvent.SENDING)
             await self.send(client, payload, packet_delay, self.sleep)
