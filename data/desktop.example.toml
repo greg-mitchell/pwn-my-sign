@@ -1,0 +1,10 @@
+command = ["./produce-image"]
+device = "replace-with-your-sign-name-or-uuid"
+interval = 300
+notification_timeout = 15
+# working_directory defaults to this configuration file's directory.
+# state_directory defaults to XDG_STATE_HOME/pwn-my-sign/display, or
+# ~/.local/state/pwn-my-sign/display when XDG_STATE_HOME is unset or unusable.
+# Optional overrides must be absolute paths after expanding ~:
+# working_directory = "~/projects/sign"
+# state_directory = "~/.local/state/pwn-my-sign/another-display"

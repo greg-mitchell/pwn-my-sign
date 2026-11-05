@@ -1,6 +1,7 @@
 import os
 import signal
 from collections.abc import Callable
+from pathlib import Path
 from subprocess import DEVNULL, PIPE, Popen, TimeoutExpired
 
 
@@ -15,13 +16,16 @@ class CommandProducer:
         self,
         spawn: Callable[..., Popen[bytes]] = Popen,
         kill_group: Callable[[int, int], None] = os.killpg,
+        cwd: Path | None = None,
     ) -> None:
         self._spawn = spawn
         self._kill_group = kill_group
+        self._cwd = cwd
 
     def run(self, command: tuple[str, ...]) -> bytes:
         """Run explicit arguments without a shell and reap the producer before returning."""
-        with self._spawn(command, stdin=DEVNULL, stdout=PIPE, start_new_session=True) as process:
+        options = {"cwd": self._cwd} if self._cwd is not None else {}
+        with self._spawn(command, stdin=DEVNULL, stdout=PIPE, start_new_session=True, **options) as process:
             try:
                 output, _ = process.communicate()
             except BaseException:

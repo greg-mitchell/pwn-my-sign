@@ -21,3 +21,10 @@ repos:
         language: system
         types: [python]
         pass_filenames: false
+
+      - id: swift-tests
+        name: native desktop tests
+        entry: make test-native
+        language: system
+        files: ^(macos/|Makefile$|pyproject\.toml$|\.pre-commit-config\.yaml$)
+        pass_filenames: false

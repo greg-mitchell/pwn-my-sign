@@ -9,6 +9,14 @@ class WorkflowKind(StrEnum):
     POLL = "poll"
     UPLOAD = "upload"
     WATCH = "watch"
+    DESKTOP = "desktop"
+
+
+class UploadOutcome(StrEnum):
+    """Whether a workflow upload skipped or recorded a completed transfer."""
+
+    SKIPPED = "skipped"
+    COMPLETED = "completed"
 
 
 class PollSettings(BaseModel):

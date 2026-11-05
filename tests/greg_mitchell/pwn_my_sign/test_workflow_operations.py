@@ -5,7 +5,7 @@ from unittest.mock import Mock
 
 import pytest
 
-from greg_mitchell.pwn_my_sign.workflow.models import PollSettings, UploadSettings
+from greg_mitchell.pwn_my_sign.workflow.models import PollSettings, UploadOutcome, UploadSettings
 from greg_mitchell.pwn_my_sign.workflow.operations import WorkflowOperations
 from greg_mitchell.pwn_my_sign.workflow.sender import SnapshotSender
 from greg_mitchell.pwn_my_sign.workflow.source import ImageSource
@@ -182,3 +182,55 @@ def test_poll_when_publication_fails_raises_os_error(source: Mock, sender: Mock,
 
     with pytest.raises(OSError, match="publication failed"):
         workflow.poll(PollSettings(command=("produce-image",)))
+
+
+def test_upload_when_unsent_returns_completed_outcome(workflow: WorkflowOperations) -> None:
+    workflow.state.publish(b"desired image")
+
+    outcome = workflow.upload(UploadSettings(device="test sign"))
+
+    assert outcome == UploadOutcome.COMPLETED
+
+
+def test_upload_when_already_sent_returns_skipped_outcome(workflow: WorkflowOperations) -> None:
+    workflow.state.publish(b"desired image")
+    workflow.state.record_sent(b"desired image")
+
+    outcome = workflow.upload(UploadSettings(device="test sign"))
+
+    assert outcome == UploadOutcome.SKIPPED
+
+
+def test_upload_when_completed_returns_after_recording_sent_snapshot(
+    workflow: WorkflowOperations, tmp_path: Path
+) -> None:
+    workflow.state.publish(b"uploaded snapshot")
+
+    workflow.upload(UploadSettings(device="test sign"))
+
+    assert (tmp_path / "last-sent.png").read_bytes() == b"uploaded snapshot"
+
+
+@pytest.mark.parametrize("already_sent", [False, True])
+def test_upload_when_outcome_returned_returns_after_releasing_lock(
+    workflow: WorkflowOperations, tmp_path: Path, already_sent: bool
+) -> None:
+    workflow.state.publish(b"desired image")
+    if already_sent:
+        workflow.state.record_sent(b"desired image")
+
+    workflow.upload(UploadSettings(device="test sign"))
+
+    assert not (tmp_path / "upload.lock").exists()
+
+
+def test_upload_when_recording_fails_raises_publication_error(source: Mock, sender: Mock, report: Mock) -> None:
+    state = Mock(spec=WorkflowState)
+    state.lock.return_value = nullcontext()
+    state.pending.return_value = b"uploaded snapshot"
+    state.is_sent.return_value = False
+    state.record_sent.side_effect = OSError("Could not record transfer")
+    operations = WorkflowOperations(state, source, sender, report)
+
+    with pytest.raises(OSError, match="Could not record transfer"):
+        operations.upload(UploadSettings(device="test sign"))

@@ -8,7 +8,8 @@ Use it with signs you own or are authorized to manage. Product names only identi
 
 **Working:** GitHub status codes, card building, PNG selection, terminal reminders, and image uploads over Bluetooth LE.
 
-**Planned:** desktop reminders, hands-off uploads.
+**Optional:** a locally built macOS menu bar app for checks, notifications, and explicit uploads.
+See the [desktop setup](docs/desktop-workflow.md). Hands-off uploads remain planned.
 
 ## Setup
 
@@ -19,6 +20,14 @@ uv sync --locked
 ```
 
 Python 3.13.6 or later is required. `uv` creates the environment and installs the `mysign` executable.
+
+The optional macOS app also requires macOS 13 or newer and Apple's Command Line Tools with Swift 6 or newer:
+
+```sh
+xcode-select --install
+```
+
+Full Xcode is optional. `make app` checks the native tools and SDK, then syncs the Python environment before building.
 
 ## Upload a custom image
 
@@ -121,6 +130,7 @@ See [synthetic rendered examples](tests/fixtures/README.md#rendered-card-example
 | `mysign workflow poll` | PNG file/stdin or producer command | Changed `pending.png` in a state directory |
 | `mysign workflow upload` | Pending image and device | Transfer and recorded snapshot |
 | `mysign workflow watch` | Producer command, device, interval | Foreground reminders and explicit uploads |
+| `mysign workflow desktop` | Explicit private TOML configuration | Native-app JSON events and manual uploads |
 
 See [architecture](docs/architecture.md) for command boundaries, stream contracts, and workflow invariants.
 
@@ -201,21 +211,23 @@ validates arbitrary input before publication, and the device sender validates th
 
 ### Poll: prepare the image for sending
 
+Poll, upload, watch, and the desktop workflow default to
+`${XDG_STATE_HOME:-$HOME/.local/state}/pwn-my-sign/display`. Empty or relative `XDG_STATE_HOME` values use the home
+fallback. Pass `--state DIRECTORY` to terminal commands to override it; `~` expands and relative overrides resolve
+from the current directory. Use a separate state directory for each sign.
+
 The poller obtains and validates one desired image, then updates `pending.png` only when its bytes differ from the
 existing pending image. It does not contact the sign or compare against `last-sent.png`. Some input options:
 
 ```bash
-# workflow state, with the image to send
-state="${XDG_STATE_HOME:-$HOME/.local/state}/pwn-my-sign/display"
-
 # read an image from file
-uv run mysign workflow poll --state "$state" --image private/selected.png
+uv run mysign workflow poll --image private/selected.png
 
 # read an image from stdin
-cat private/selected.png | uv run mysign workflow poll --state "$state" --image -
+cat private/selected.png | uv run mysign workflow poll --image -
 
 # or invoke an image producer command
-uv run mysign workflow poll --state "$state" -- private/produce-image
+uv run mysign workflow poll -- private/produce-image
 ```
 
 - Image input options: `--image FILE`, `--image -` for stdin, or a producer command after `--`.
@@ -237,7 +249,7 @@ The image artifacts and publication rules are defined in [workflow state](docs/a
 Once `pending.png` exists, run the uploader:
 
 ```bash
-uv run mysign workflow upload --state "$state" --device "$MYSIGN_DEVICE"
+uv run mysign workflow upload --device "$MYSIGN_DEVICE"
 ```
 
 The uploader snapshots `pending.png`, compares it with `last-sent.png`, and skips transfer when the bytes match.
@@ -253,7 +265,7 @@ The snapshot follows the [workflow state contract](docs/architecture.md#workflow
 For a simple foreground alternative to installing a scheduled job, leave this running in a terminal:
 
 ```bash
-uv run mysign workflow watch --state "$state" --device "$MYSIGN_DEVICE" \
+uv run mysign workflow watch --device "$MYSIGN_DEVICE" \
   --interval 300 -- private/produce-image
 ```
 
@@ -266,7 +278,7 @@ If you leave the prompt alone, it polls again after the interval and reminds you
 For example, the GitHub source and image selector compose as one producer:
 
 ```sh
-uv run mysign workflow watch --state "$state" --device "$MYSIGN_DEVICE" --interval 300 \
+uv run mysign workflow watch --device "$MYSIGN_DEVICE" --interval 300 \
   -- bash -o pipefail -c '
     mysign github status --policy data/github-actions.toml |
       mysign image match --map private/images.toml
@@ -289,14 +301,26 @@ The [scheduler recipes](docs/workflow-scheduling.md) cover systemd, cron, and la
 They schedule only polling; upload remains a foreground action while physical wake is required.
 No command installs jobs or starts a scheduler automatically.
 
-### Desktop reminders — WIP
+### macOS menu bar app
 
-The [desktop workflow proposal](docs/desktop-workflow-design.md) scopes a self-contained SwiftBar integration and records
-live permission and lifecycle findings. It is not yet implemented.
+The optional **My Sign** app checks for changed images, sends desktop notifications, and offers Upload from its menu.
+It reuses the Python workflow and supplies the button prompt immediately before discovery. No SwiftBar or separately
+scheduled polling service is needed.
 
-Desktop helpers and optional dynamic rendering are tracked in the
-[implementation plan](docs/implementation-plan.md#optional-desktop-and-rendering-work). Their design boundaries are defined
-in [architecture](docs/architecture.md#button-prompts-and-desktop-integration).
+Copy [the example configuration](data/desktop.example.toml) into ignored `private/desktop.toml`, then set its device and
+producer arguments. Build and open the app from the checkout root:
+
+```sh
+make app
+open 'build/macos/My Sign.app'
+```
+
+Local source builds use Apple's command-line tools and apply a local signature automatically. No developer account
+or signing infrastructure is needed. Use **Test notification**, allow notifications, and verify a visible banner before
+using uploads. macOS may require permissions again after rebuilding.
+
+See [desktop setup and recovery](docs/desktop-workflow.md) and the
+[desktop architecture](docs/architecture.md#desktop-integration).
 
 ## Development
 
@@ -307,7 +331,15 @@ uv run poe format
 uv run poe check-all
 ```
 
-Available tasks, entrypoints, and dependencies are defined in [pyproject.toml](pyproject.toml).
+Python tasks, entrypoints, and dependencies are defined in [pyproject.toml](pyproject.toml).
+The [Makefile](Makefile) exposes desktop build and test commands. Swift targets and native tests belong to the
+[macOS package](macos/Package.swift), built with SwiftPM. Run its tests with `make test-native`.
+
+The checkout is the Python package root (`pyproject.toml`, `src/`, `tests/`). The optional platform app is a separate
+Swift package under `macos/`, using SwiftPM's `Sources/<target>` and `Tests/<target>` layout. Swift intermediates stay in
+`macos/.build/`; `make app` assembles the locally signed app in `build/macos/`. Both are ignored build output.
+Personal configuration and artwork belong in ignored `private/`; workflow state uses the documented state directory.
+
 Workflow behavior is covered by ordinary pytest tests with injected dependencies, without network, Bluetooth,
 subprocesses, or real waits. Run those alone with `uv run pytest -k workflow`.
 See [the contributor guidelines](AGENTS.md) for required checks, coding conventions, and test rules.
@@ -323,12 +355,13 @@ uv run python scripts/investigation/analyze_photo.py private/photos/20261022T130
 
 ## Documentation
 
-- [Implementation plan](docs/implementation-plan.md): milestones and current WIP.
-- [Protocol](docs/protocol.md): observed BLE behavior and confirmed wire format.
-- [Architecture](docs/architecture.md): tool contracts, workflow state, and optional desktop integration.
-- [Display calibration](docs/display-calibration.md): photograph analysis and the 32-pixel content inset.
-- [Provenance and licensing](docs/provenance.md): independent implementation, synthetic fixtures, and dependency notices.
-- [Agent instructions](AGENTS.md), [Python style](docs/python-style.md), and [test style](docs/test-style.md).
+- Guides: [desktop setup](docs/desktop-workflow.md) and [workflow scheduling](docs/workflow-scheduling.md).
+- Developer references: [architecture](docs/architecture.md), [desktop process protocol](docs/desktop-protocol.md),
+  [BLE protocol](docs/protocol.md), and [display calibration](docs/display-calibration.md).
+- Contributing: [agent instructions](AGENTS.md), [Python style](docs/python-style.md), and [test style](docs/test-style.md).
+- [Provenance and licensing](docs/provenance.md): implementation sources, fixtures, and dependency notices.
+- Planning history in `docs/plans/`: [milestones and remaining validation](docs/plans/implementation-plan.md),
+  and [desktop decisions](docs/plans/desktop-workflow-design.md). These are not setup or architecture references.
 
 ## License
 

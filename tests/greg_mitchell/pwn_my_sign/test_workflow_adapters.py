@@ -5,6 +5,7 @@ from unittest.mock import ANY, Mock
 
 import pytest
 
+from greg_mitchell.pwn_my_sign.device.events import UploadEvent
 from greg_mitchell.pwn_my_sign.device.operations import DeviceOperations
 from greg_mitchell.pwn_my_sign.workflow.models import PollSettings, UploadSettings
 from greg_mitchell.pwn_my_sign.workflow.producer import CommandProducer, ProducerError
@@ -138,3 +139,54 @@ def test_wait_when_readiness_fails_raises_os_error() -> None:
 
     with pytest.raises(OSError, match="input unavailable"):
         TerminalInput(StringIO(), ready).wait(7)
+
+
+def test_send_when_observer_supplied_calls_device_uploader_with_observer() -> None:
+    operations = Mock(spec=DeviceOperations)
+    observer = Mock(spec=Callable)
+    report = Mock(spec=Callable)
+
+    SnapshotSender(operations, on_event=observer).send(b"snapshot PNG", UploadSettings(device="test sign"), report)
+
+    operations.upload.assert_awaited_once_with(
+        "test sign",
+        image_path=None,
+        frame_path=None,
+        image_stream=ANY,
+        timeout=60,
+        packet_delay=0.05,
+        report=report,
+        on_event=observer,
+    )
+
+
+def test_send_when_device_reports_events_calls_supplied_observer() -> None:
+    operations = Mock(spec=DeviceOperations)
+    observed: list[UploadEvent] = []
+
+    async def upload(device: str, *, on_event: Callable[[UploadEvent], None], **kwargs: object) -> None:
+        on_event(UploadEvent.WAITING_FOR_BUTTON)
+        on_event(UploadEvent.SENDING)
+
+    operations.upload.side_effect = upload
+
+    SnapshotSender(operations, on_event=observed.append).send(
+        b"snapshot PNG", UploadSettings(device="test sign"), Mock(spec=Callable)
+    )
+
+    assert observed == [UploadEvent.WAITING_FOR_BUTTON, UploadEvent.SENDING]
+
+
+def test_send_when_supplied_observer_fails_raises_observer_error() -> None:
+    operations = Mock(spec=DeviceOperations)
+    observer = Mock(spec=Callable, side_effect=TimeoutError("No button prompt acknowledgment"))
+
+    async def upload(device: str, *, on_event: Callable[[UploadEvent], None], **kwargs: object) -> None:
+        on_event(UploadEvent.WAITING_FOR_BUTTON)
+
+    operations.upload.side_effect = upload
+
+    with pytest.raises(TimeoutError, match="No button prompt acknowledgment"):
+        SnapshotSender(operations, on_event=observer).send(
+            b"snapshot PNG", UploadSettings(device="test sign"), Mock(spec=Callable)
+        )

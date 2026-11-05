@@ -4,7 +4,8 @@ Rules for working in this repo:
 
 1. **Source of Truth**:
    * [README.md](./README.md) for high level setup and human-readable docs.
-   * [pyproject.toml](./pyproject.toml) for command definitions (`[tool.poe.tasks]`) and dependencies.
+   * [pyproject.toml](./pyproject.toml) for Python commands, checks, and dependencies.
+   * [Makefile](./Makefile) for desktop build entrypoints; [macos/Package.swift](./macos/Package.swift) for Swift targets.
    * [docs/](./docs)
        * [python-style.md](./docs/python-style.md): python style guide (sources)
        * [test-style.md](./docs/test-style.md): style guide for testing in this repo
@@ -27,7 +28,7 @@ body
 4. **Project boundaries**:
    * [docs/protocol.md](./docs/protocol.md) records observed device behavior. Preserve the verified wire format.
    * [docs/architecture.md](./docs/architecture.md) defines command boundaries and stream contracts.
-   * [docs/implementation-plan.md](./docs/implementation-plan.md) distinguishes completed work from WIP.
+   * [docs/plans/implementation-plan.md](./docs/plans/implementation-plan.md) distinguishes completed work from WIP.
    * Keep external scheduling in documented Unix composition. Thin Python CLI commands delegate workflow logic and state
      to `src`, with injected dependencies and ordinary pytest coverage. Terminal prompts come first; desktop UI is optional.
    * Keep device identities, Android bug reports, raw Bluetooth captures, and investigation photos in ignored `private/`.
