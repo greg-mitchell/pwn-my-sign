@@ -114,9 +114,10 @@ submission, and cancellation of its child during quit/sleep. Local builds apply 
 
 Validation: lint, strict types, 711 Python tests, 70 native tests, and all pre-commit hooks pass. A real-process offline
 smoke checked polling, notification deduplication, menu actions, already-sent upload skipping, EOF, and lock cleanup.
-The actual local app built, signed, launched, and polled its offline fixture through the Python child.
+The actual local app built, signed, launched, and polled its offline fixture through the Python child. The user
+confirmed its up-to-date menu and visible Test notification banner after permission was granted.
 
 See [desktop setup](desktop-workflow.md) and [the JSON contract](desktop-protocol.md). Actual app notification denial,
 Bluetooth permission grant/denial, a real upload, sleep during transfer, permission persistence across rebuilds, and
-optional login startup remain live acceptance checks. The native probe establishes visible delivery on the tested Mac;
-it does not establish the installed workflow's end-to-end readiness. Dynamic rendering remains outside this scope.
+optional login startup remain live acceptance checks. Visible delivery is verified for both the probe and actual app
+on the tested Mac; this does not establish real-transfer readiness. Dynamic rendering remains outside this scope.

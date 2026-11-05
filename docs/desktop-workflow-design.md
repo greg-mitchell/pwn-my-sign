@@ -74,8 +74,9 @@ network/Bluetooth in unit tests, and the repository's lint, strict type, and ful
 
 Implementation validation: lint, strict types, 711 Python tests, 70 native tests, and every pre-commit hook pass.
 The real-process offline smoke covers polling, reminder deduplication, Check, an already-sent upload skip, parent EOF,
-and lock cleanup. The locally built/signed app launched and its Python child polled the fixture successfully.
-The installed app's visible notification check and the hardware/lifecycle checks above remain live acceptance gates.
+and lock cleanup. The locally built/signed app launched and its Python child polled the fixture successfully. The user
+confirmed the actual app's up-to-date menu and visible Test notification banner after granting permission.
+The hardware/lifecycle checks above remain live acceptance gates.
 
 ## Superseded SwiftBar proposal and investigation
 

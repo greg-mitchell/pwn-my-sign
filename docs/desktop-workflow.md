@@ -49,10 +49,10 @@ menu. A successful retry clears an earlier notification error. If notifications 
 in macOS notification settings and test again. Focus and notification presentation preferences can suppress or delay
 banners even when submission succeeds; the menu remains available.
 
-The disposable native probe delivered visible notifications on the development Mac, including a menu-triggered
-retry after permission was allowed. That is evidence for the native integration choice, not a substitute for testing
-the installed app's permissions. The probe used a different bundle identity, so its grant does not grant the built app
-permission automatically.
+The user confirmed visible notifications from both the disposable probe and the actual locally built app on the
+development Mac, and confirmed the actual app's up-to-date menu against an offline fixture. Test each installation's
+permissions: the probe used a different bundle identity, so its grant does not grant the built app permission
+automatically.
 
 The app checks immediately and then waits `interval` seconds after each check completes. It remembers the last
 notified unsent image across ordinary restarts and clears that reminder history when the desired image is up to date.
